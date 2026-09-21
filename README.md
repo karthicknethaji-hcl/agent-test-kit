@@ -25,6 +25,18 @@ Full walkthrough: `docs/GETTING-STARTED.md`. File/interface contracts:
 it's validated against real agents outside AIPM-ToolKit. Public npm release
 is a later, separate decision.
 
+## Publishing (maintainers)
+
+Publishing to GitHub Packages happens via `.github/workflows/publish.yml`,
+triggered by pushing a `vX.Y.Z` tag (or manually via "Run workflow" in the
+Actions tab). It uses GitHub's own built-in `GITHUB_TOKEN` — no publish
+token is ever stored in this repo or handled outside CI.
+
+```
+npm version 0.1.1   # bumps package.json + creates the git tag
+git push --follow-tags
+```
+
 ## Installing from the private registry
 
 This package publishes to GitHub Packages under this org. In the consuming

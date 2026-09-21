@@ -1,0 +1,31 @@
+name: Publish to GitHub Packages
+
+# Publishes @karthicknethaji-hcl/agent-test-kit to this org's private
+# GitHub Packages npm registry whenever a version tag is pushed. Uses
+# GitHub's own built-in GITHUB_TOKEN (packages: write below) -- no
+# manually-created publish token is ever stored in this repo.
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@karthicknethaji-hcl'
+      - run: npm ci
+      - run: npm test
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
