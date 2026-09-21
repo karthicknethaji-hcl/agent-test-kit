@@ -14,6 +14,7 @@ function createJsonFileSink(options) {
 
   return {
     filePath,
+    describe() { return 'local NDJSON file: ' + filePath; },
     async write(row) {
       fs.appendFileSync(filePath, JSON.stringify(row) + '\n', 'utf8');
     }

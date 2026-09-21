@@ -32,24 +32,18 @@ async function runCmd(config, agentName, opts) {
   const resultsSink = config.createResultsSink();
   const traceResolver = config.createTraceResolver();
 
-  const { runId, results, totalFail } = await runSuite({
+  const { runId, results, totalFail, byCategory } = await runSuite({
     agentDir, invoke, testCasesModule, rubricsConfig, scriptChecks,
     callJudgeModel, resultsSink, traceResolver,
     only: opts.only, all: opts.all
   });
 
   console.log('\n─── Summary (run ' + runId + ') ───');
-  const byCategory = {};
-  for (const { testCase, outcome } of results) {
-    const cat = testCase.category;
-    byCategory[cat] = byCategory[cat] || { pass: 0, fail: 0 };
-    if (outcome.pass) byCategory[cat].pass++; else byCategory[cat].fail++;
-  }
   for (const cat of Object.keys(byCategory).sort()) {
     console.log(cat + ': ' + byCategory[cat].pass + ' pass, ' + byCategory[cat].fail + ' fail');
   }
   console.log('\nTotal: ' + results.length + ' run, ' + (results.length - totalFail) + ' passed, ' + totalFail + ' failed.');
-  if (resultsSink.filePath) console.log('Results written to: ' + resultsSink.filePath);
+  if (typeof resultsSink.describe === 'function') console.log('Results written to: ' + resultsSink.describe());
 
   process.exitCode = totalFail > 0 ? 1 : 0;
 }

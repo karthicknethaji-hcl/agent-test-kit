@@ -7,7 +7,7 @@
 // supplies its own resolver instead — see docs/CONTRACT.md "traceResolver".
 function createIdentityTraceResolver() {
   return {
-    async resolve(clientTraceId) {
+    async resolve(clientTraceId, agentName) {
       return clientTraceId || null;
     }
   };

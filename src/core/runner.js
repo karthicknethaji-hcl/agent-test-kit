@@ -45,7 +45,8 @@ async function runDualConversation(invoke, testCase) {
  *   rubricsConfig  : agent's rubrics.js module
  *   scriptChecks   : agent's scriptChecks.js module (or {})
  *   callJudgeModel : async (promptText) => rawResponseText
- *   resultsSink    : { write(row) } — see docs/CONTRACT.md "Result row schema"
+ *   resultsSink    : { write(row), finalize(runSummary)? } — see docs/CONTRACT.md
+ *                    "Result row schema" / "resultsSink lifecycle"
  *   traceResolver  : { resolve(clientTraceId) => traceId|null }
  *   only           : string[] test ids to run regardless of v1Scope
  *   all            : boolean — also run v1Scope:false cases
@@ -73,7 +74,11 @@ async function runSuite(options) {
 
   async function persist(agentName, testCase, outcome, clientTraceId) {
     if (!resultsSink) return;
-    const traceId = traceResolver ? await traceResolver.resolve(clientTraceId) : (clientTraceId || null);
+    // agentName is passed alongside clientTraceId (not just the id alone) so
+    // a real resolver can scope its lookup correctly, e.g. mt_ai_traces'
+    // real query shape is .eq('client_trace_id', ...).eq('agent_name', ...)
+    // — a client_trace_id alone isn't guaranteed unique across agents.
+    const traceId = traceResolver ? await traceResolver.resolve(clientTraceId, agentName) : (clientTraceId || null);
     const rubricMeta = rubricsConfig && rubricsConfig[testCase.rubric];
     // Canonical result row — every sink receives exactly this shape, see
     // docs/CONTRACT.md "Result row schema". Sinks differ only in WHERE this
@@ -141,7 +146,23 @@ async function runSuite(options) {
   }
 
   const totalFail = results.filter((r) => !r.outcome.pass).length;
-  return { runId, results, totalFail };
+
+  const byCategory = {};
+  for (const { testCase, outcome } of results) {
+    const cat = testCase.category;
+    byCategory[cat] = byCategory[cat] || { pass: 0, fail: 0 };
+    if (outcome.pass) byCategory[cat].pass++; else byCategory[cat].fail++;
+  }
+
+  // Optional lifecycle hook — called once, after every row for this run has
+  // already gone through resultsSink.write(). A sink that only needs
+  // per-row writes (jsonFileSink, supabaseSink) simply won't define this;
+  // one that needs to render a whole-run summary (markdownSink) does.
+  if (resultsSink && typeof resultsSink.finalize === 'function') {
+    await resultsSink.finalize({ runId, agentName: invoke.agentName, totalRun: results.length, totalFail, byCategory });
+  }
+
+  return { runId, results, totalFail, byCategory };
 }
 
 module.exports = { runSuite };

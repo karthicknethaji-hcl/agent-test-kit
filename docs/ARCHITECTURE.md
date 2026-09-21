@@ -42,11 +42,24 @@ assistant — useful interactively with no API key, useless headless/in CI.
 ### `resultsSink` — where result rows get persisted
 
 The **row shape is fixed** (see `docs/CONTRACT.md` "Result row schema") —
-that's the package's contract, not something each repo redefines. What
-varies is the destination. Default: `adapters/resultsSinks/jsonFileSink.js`
-(local NDJSON file, zero external dependencies). A repo with its own
-database writes a custom sink that maps this same row shape into its own
-schema/columns — the mapping, not the row shape, is what's custom.
+that's the package's contract, not something each repo redefines. Default:
+`adapters/resultsSinks/markdownSink.js` (a human-readable `.md` report, zero
+external dependencies) — a repo that wants machine-readable output instead
+can use `jsonFileSink`.
+
+For a database, `supabaseSink` is deliberately **not** a bring-your-own-table
+adapter — it always writes to the same fixed table
+(`agent_test_kit_quality_scores`, schema in
+`sql/agent-test-kit-quality-scores-migration.sql`) with the same columns, in
+every repo that adopts this package. Only the connection (which Supabase
+project) is ever repo-specific; the schema itself isn't. This is on purpose:
+a fixed, universal schema is what makes it possible to build one dashboard
+or reporting tool against results from ANY repo using agent-test-kit,
+instead of every repo inventing its own table shape and that tooling never
+being reusable. `multiSink` combines more than one of these in a single
+run, e.g. a Markdown report for humans and a
+database write for cross-run querying, at the same time — see
+`docs/CONTRACT.md` "Built-in `resultsSink` adapters".
 
 ### `credentialResolver` — how auth/session values get resolved
 
@@ -68,7 +81,12 @@ client-generated `clientTraceId` (already threaded through
 Default: `adapters/traceResolvers/identityTraceResolver.js` (passthrough). A
 repo with its own trace/observability layer (a table mapping a
 client-generated correlation id to a server-assigned trace record) supplies
-its own resolver instead.
+its own resolver instead — `resolve(clientTraceId, agentName)` gets both, so
+the lookup can be scoped correctly rather than assuming `clientTraceId`
+alone is globally unique. A sensible custom resolver falls back to the raw
+`clientTraceId` when no matching trace row exists yet, rather than
+returning `null` — that keeps every row's `trace_id` populated with
+something usable even before the trace layer has caught up.
 
 ## What's genuinely fixed vs. what a consuming repo must author
 

@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 
 const { createAnthropicJudgeClient } = require('../adapters/judgeClients/anthropicJudgeClient');
-const { createJsonFileSink } = require('../adapters/resultsSinks/jsonFileSink');
+const { createMarkdownSink } = require('../adapters/resultsSinks/markdownSink');
 const { createEnvCredentialResolver } = require('../adapters/credentialResolvers/envCredentialResolver');
 const { createIdentityTraceResolver } = require('../adapters/traceResolvers/identityTraceResolver');
 
@@ -36,7 +36,7 @@ function loadConfig(startDir) {
     root,
     agentsDir,
     createJudgeClient: userConfig.createJudgeClient || (() => createAnthropicJudgeClient()),
-    createResultsSink: userConfig.createResultsSink || (() => createJsonFileSink({ filePath: path.join(root, '.agent-test-kit-results.ndjson') })),
+    createResultsSink: userConfig.createResultsSink || (() => createMarkdownSink({ filePath: path.join(root, '.agent-test-kit-results.md') })),
     createCredentialResolver: userConfig.createCredentialResolver || (() => createEnvCredentialResolver()),
     createTraceResolver: userConfig.createTraceResolver || (() => createIdentityTraceResolver())
   };

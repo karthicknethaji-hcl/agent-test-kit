@@ -111,11 +111,30 @@ See `docs/ARCHITECTURE.md` for why each of these exists and what varies per
 consuming repo.
 
 - **`judgeClient`**: `async (promptText) => rawResponseText`
-- **`resultsSink`**: `{ async write(row), verify?(result) }` — `write` is
-  required; `verify` is optional, used only by `agent-test-kit smoke` to
-  confirm a write actually landed if the sink wants to offer that.
+- **`resultsSink`**: `{ async write(row), finalize?(runSummary), verify?(result) }`
+  — `write` is required, called once per test case as it completes.
+  `finalize` is optional, called once by `runner.js` after every row for the
+  run has already been written, with
+  `{runId, agentName, totalRun, totalFail, byCategory}` — a sink that only
+  needs per-row writes (`jsonFileSink`, `supabaseSink`) doesn't need it; one
+  that renders a whole-run summary (`markdownSink`) does. `verify` is
+  separate again, used only by `agent-test-kit smoke` to confirm a write
+  actually landed if the sink wants to offer that.
 - **`credentialResolver`**: `{ async resolve(agentName, varNames) => { resolved, missing } }`
-- **`traceResolver`**: `{ async resolve(clientTraceId) => traceId|null }`
+- **`traceResolver`**: `{ async resolve(clientTraceId, agentName) => traceId|null }` —
+  `agentName` is passed alongside the id so a real lookup can scope its
+  query correctly (a `clientTraceId` alone isn't guaranteed unique across
+  agents sharing one trace table).
+
+### Built-in `resultsSink` adapters
+
+| Adapter | Default? | Notes |
+|---|---|---|
+| `markdownSink` | Yes | Appends one `##` section (table + summary) per run to a local `.md` file. Zero dependencies. |
+| `jsonFileSink` | No | Appends one NDJSON line per row. Zero dependencies. Machine-readable. |
+| `consoleSink` | No | No persistence at all — discards every row. |
+| `supabaseSink` | No | Opinionated, not generic — `{supabaseUrl, supabaseServiceRoleKey}` only. Always writes to the same fixed table, `agent_test_kit_quality_scores` (schema: `sql/agent-test-kit-quality-scores-migration.sql`, run it yourself once), with the same columns, in every adopting repo — deliberate, so one dashboard/reporting tool can be built against any repo using this package. This package has no hard dependency on `@supabase/supabase-js` (lazily `require`'d, but declared as an `optionalDependency` so it resolves correctly even via a symlinked `file:` install). Insert failures warn, never fail the run. |
+| `multiSink` | No | `createMultiSink([sinkA, sinkB, ...])` — fans `write()`/`finalize()` out to every sink in the list, e.g. to run `markdownSink` and `supabaseSink` together. |
 
 ## Result row schema (fixed — every `resultsSink` receives exactly this shape)
 
