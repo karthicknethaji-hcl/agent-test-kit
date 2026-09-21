@@ -45,9 +45,8 @@ The **row shape is fixed** (see `docs/CONTRACT.md` "Result row schema") —
 that's the package's contract, not something each repo redefines. What
 varies is the destination. Default: `adapters/resultsSinks/jsonFileSink.js`
 (local NDJSON file, zero external dependencies). A repo with its own
-database (e.g. AIPM-ToolKit's `mt_ai_quality_scores` table) writes a custom
-sink that maps this same row shape into its own schema/columns — the
-mapping, not the row shape, is what's custom.
+database writes a custom sink that maps this same row shape into its own
+schema/columns — the mapping, not the row shape, is what's custom.
 
 ### `credentialResolver` — how auth/session values get resolved
 
@@ -55,8 +54,8 @@ Different repos have wildly different ways of getting a test credential:
 plain env vars, a browser-driven session token, a secrets manager, an
 interactive sign-in flow. Default: `adapters/credentialResolvers/envCredentialResolver.js`
 (`<AGENT_NAME>_<VAR>` naming convention). A repo whose agent needs a live
-session token (the way AIPM-ToolKit's agents pull a Supabase JWT out of
-browser localStorage) supplies its own resolver with the same
+session token (e.g. pulling an auth token out of browser localStorage)
+supplies its own resolver with the same
 `resolve(agentName, varNames)` interface instead — this is called from
 inside your own `invoke-config.js`'s `sendMessage()`, not by the framework
 itself, since only your code knows what to do with the resolved values.
@@ -68,9 +67,8 @@ client-generated `clientTraceId` (already threaded through
 `invoke-config.js`'s `sendMessage()` return value) simply IS the trace id.
 Default: `adapters/traceResolvers/identityTraceResolver.js` (passthrough). A
 repo with its own trace/observability layer (a table mapping a
-client-generated correlation id to a server-assigned trace record — the way
-AIPM-ToolKit's `mt_ai_traces`/`mt_ai_usage_events` do) supplies its own
-resolver instead.
+client-generated correlation id to a server-assigned trace record) supplies
+its own resolver instead.
 
 ## What's genuinely fixed vs. what a consuming repo must author
 

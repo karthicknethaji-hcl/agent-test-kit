@@ -5,9 +5,9 @@ rubric-scored test suites against any AI agent, in any codebase — as an
 `npx`-installable CLI plus a companion Claude Code plugin for the
 LLM-in-the-loop steps.
 
-Extracted from a framework built and proven inside AIPM-ToolKit's own
-Requirement Agent and Discovery Map onboardings. See `docs/ARCHITECTURE.md`
-for what's genuinely generic vs. what a consuming repo still has to author.
+Extracted from an internal framework built and proven on two production AI
+agents. See `docs/ARCHITECTURE.md` for what's genuinely generic vs. what a
+consuming repo still has to author.
 
 ## The pipeline
 
@@ -22,8 +22,8 @@ Full walkthrough: `docs/GETTING-STARTED.md`. File/interface contracts:
 ## Status
 
 **Private preview.** Published to a private registry only (see below) while
-it's validated against real agents outside AIPM-ToolKit. Public npm release
-is a later, separate decision.
+it's validated against real agents outside the codebase it was extracted
+from. Public npm release is a later, separate decision.
 
 ## Publishing (maintainers)
 
