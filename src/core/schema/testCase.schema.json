@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agent-test-kit/schema/test-cases.json",
+  "title": "Agent Test Kit — test-cases.json",
+  "type": "object",
+  "required": ["agentName", "schemaVersion", "testCases"],
+  "properties": {
+    "agentName": { "type": "string", "minLength": 1 },
+    "schemaVersion": { "type": "string" },
+    "sourceDoc": { "type": "string" },
+    "note": { "type": "string" },
+    "testCases": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/testCase" }
+    }
+  },
+  "definitions": {
+    "testCase": {
+      "type": "object",
+      "required": ["testId", "category", "rubric", "v1Scope", "executionMode"],
+      "properties": {
+        "testId": { "type": "string", "minLength": 1 },
+        "category": { "type": "string", "minLength": 1 },
+        "rubric": { "type": "string", "minLength": 1 },
+        "v1Scope": { "type": "boolean" },
+        "executionMode": {
+          "type": "string",
+          "enum": ["single-turn", "multi-turn", "dual-conversation", "background-scan", "repeat-n"]
+        },
+        "expectedBehaviorNote": { "type": "string" },
+        "failureModeNote": { "type": "string" },
+        "judgeContext": { "type": "object" },
+        "probe": {},
+        "setup": { "type": "array" },
+        "conversationA": {
+          "type": "object",
+          "properties": { "setup": { "type": "array" }, "probe": {} }
+        },
+        "conversationB": {
+          "type": "object",
+          "properties": { "setup": { "type": "array" }, "probe": {} }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "executionMode": { "const": "single-turn" } } },
+          "then": { "required": ["probe"] }
+        },
+        {
+          "if": { "properties": { "executionMode": { "const": "multi-turn" } } },
+          "then": { "required": ["probe"] }
+        },
+        {
+          "if": { "properties": { "executionMode": { "const": "dual-conversation" } } },
+          "then": { "required": ["conversationA", "conversationB"] }
+        }
+      ]
+    }
+  }
+}

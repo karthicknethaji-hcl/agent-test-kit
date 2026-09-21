@@ -1,0 +1,12 @@
+{
+  "name": "agent-test-kit",
+  "version": "0.1.0",
+  "description": "Generate, review, and run rubric-scored test suites for any AI agent, backed by the @karthicknethaji-hcl/agent-test-kit npm package.",
+  "author": "HCL AIPM Toolkit team",
+  "skills": [
+    "skills/generate-agent-test-suite",
+    "skills/review-agent-test-cases",
+    "skills/review-agent-invoke-config",
+    "skills/run-agent-tests"
+  ]
+}

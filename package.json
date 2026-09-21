@@ -1,0 +1,29 @@
+{
+  "name": "@karthicknethaji-hcl/agent-test-kit",
+  "version": "0.1.0",
+  "description": "Agent-agnostic AI agent test execution framework: generate, review, and run rubric-scored test suites against any AI agent in any codebase.",
+  "license": "UNLICENSED",
+  "private": false,
+  "bin": {
+    "agent-test-kit": "bin/agent-test-kit.js"
+  },
+  "main": "src/index.js",
+  "files": [
+    "bin",
+    "src",
+    "examples",
+    "docs/CONTRACT.md"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "scripts": {
+    "test": "node test/run-example-agent.test.js"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1"
+  }
+}

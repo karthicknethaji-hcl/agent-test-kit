@@ -1,0 +1,4 @@
+{
+  "gate1": { "approved": true, "reviewer": "agent-test-kit maintainers", "date": "2026-09-21", "notes": "Bundled reference agent — pre-approved so `npx agent-test-kit run example-agent` works out of the box for verification." },
+  "gate2": { "approved": true, "reviewer": "agent-test-kit maintainers", "date": "2026-09-21", "notes": "invoke-config.js is fully local/deterministic; nothing to verify against a real backend." }
+}

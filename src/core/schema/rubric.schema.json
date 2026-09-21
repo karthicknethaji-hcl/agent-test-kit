@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agent-test-kit/schema/rubrics.js",
+  "title": "Agent Test Kit — rubrics.js module.exports shape",
+  "type": "object",
+  "additionalProperties": { "$ref": "#/definitions/rubric" },
+  "definitions": {
+    "rubric": {
+      "type": "object",
+      "required": ["metric", "evaluatorType"],
+      "properties": {
+        "metric": { "type": "string", "minLength": 1 },
+        "evaluatorType": {
+          "type": "string",
+          "enum": ["script_diff", "llm_judge", "toxicity_scan"]
+        },
+        "scale": { "type": "string" },
+        "threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "judgePromptTemplate": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "evaluatorType": { "const": "llm_judge" } } },
+          "then": { "required": ["judgePromptTemplate"] }
+        },
+        {
+          "if": { "properties": { "evaluatorType": { "const": "toxicity_scan" } } },
+          "then": { "required": ["judgePromptTemplate"] }
+        }
+      ]
+    }
+  }
+}

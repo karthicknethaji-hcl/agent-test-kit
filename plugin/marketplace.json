@@ -1,0 +1,11 @@
+{
+  "name": "agent-test-kit-marketplace",
+  "description": "Marketplace for the agent-test-kit Claude Code plugin — generate/review/run AI agent test suites.",
+  "plugins": [
+    {
+      "name": "agent-test-kit",
+      "source": "./",
+      "description": "Generate, review, and run rubric-scored test suites for any AI agent."
+    }
+  ]
+}

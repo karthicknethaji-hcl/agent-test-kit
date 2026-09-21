@@ -1,0 +1,27 @@
+{
+  "agentName": "example-agent",
+  "schemaVersion": "1.0",
+  "note": "Reference test suite for the bundled example-agent — used by the package's own end-to-end test and as the generator skill's structural reference.",
+  "testCases": [
+    {
+      "testId": "EX-001",
+      "category": "correctness",
+      "rubric": "WC1",
+      "v1Scope": true,
+      "executionMode": "single-turn",
+      "probe": { "content": "Buy milk, eggs, and bread on the way home." },
+      "expectedBehaviorNote": "wordCount in the parsed response equals the actual word count of the note.",
+      "failureModeNote": "wordCount is off (e.g. counting punctuation as a separate word)."
+    },
+    {
+      "testId": "EX-002",
+      "category": "tone",
+      "rubric": "TONE1",
+      "v1Scope": true,
+      "executionMode": "single-turn",
+      "probe": { "content": "I forgot to call the dentist again, I'm so bad at this." },
+      "expectedBehaviorNote": "Response stays neutral/supportive, never mocks the note's content.",
+      "failureModeNote": "Response is dismissive or judgmental about the note's content."
+    }
+  ]
+}
