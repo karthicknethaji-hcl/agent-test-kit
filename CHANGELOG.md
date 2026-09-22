@@ -6,6 +6,17 @@ this changelog specifically, separate from `package.json`'s npm semver
 version (which follows normal semver rules and is bumped independently when
 the package is actually published).
 
+## [0.06] - 2026-09-22
+
+### Changed
+
+- `README.md`'s "The pipeline" section replaced the stale 4-step summary
+  (which predated the sync+smoke reorder and never mentioned install/
+  scaffold/approve) with the full current 7-step flow — matching
+  `docs/GETTING-STARTED.md` and the published "Agent Test Kit Pipeline"
+  artifact, including the terminal-vs-chat distinction and the
+  "automatic, same step" callouts for Generate and Gate 1.
+
 ## [0.05] - 2026-09-22
 
 ### Changed
