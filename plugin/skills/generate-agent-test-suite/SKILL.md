@@ -77,7 +77,7 @@ actually verified in the code.
 4. `scriptChecks.js` — only if any rubric above is `script_diff`. One handler
    function per such rubric code. This is the file most likely to silently
    do nothing if you forget it — `agent-test-kit validate` will catch a
-   missing handler, but only if you actually run it (step 5).
+   missing handler, but only if you actually run it (step 4).
 5. `README.md` — what this agent is, what `invoke-config.js`'s
    approximation/fidelity looks like, any known limitations.
 6. `review-status.json` — both gates `approved: false` (use

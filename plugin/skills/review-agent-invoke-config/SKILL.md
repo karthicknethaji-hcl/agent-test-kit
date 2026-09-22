@@ -11,6 +11,13 @@ skill never sets `review-status.json`'s `gate2.approved` to `true` itself.
 ## 1. Load context
 
 - `<agentsDir>/<agent>/invoke-config.js` and `scriptChecks.js` (if present).
+- `<agentsDir>/<agent>/test-cases.json` — this must already reflect Gate 1's
+  reviewed content: `review-agent-test-cases` (Gate 1) runs `sync` and a
+  `smoke` re-check as its own closing step, before Gate 1 is ever approved.
+  If `test-cases.json` still looks stale relative to
+  `test-cases.review.md`/`rubrics.review.md` (`npx agent-test-kit
+  check-md-staleness <agent>` will say so), send this back to Gate 1 first
+  rather than reviewing against out-of-date content.
 - The agent's real source code (whatever `invoke-config.js` claims to call
   or approximate).
 - `docs/CONTRACT.md` for the exact contract both files must satisfy.

@@ -7,7 +7,7 @@
 | 1. Generate | Claude Code skill (`plugin/skills/generate-agent-test-suite`) | Yes — reading arbitrary agent source and drafting realistic test cases/rubrics/invocation config is a reasoning task, not a deterministic transform. |
 | 1.5 Render | `agent-test-kit render <agent>` (deterministic CLI) | No — `test-cases.json`/`rubrics.js` → `test-cases.review.md`/`rubrics.review.md`. |
 | 2. Gate 1 review | Claude Code skill (`plugin/skills/review-agent-test-cases`), editing the `.review.md` files | Yes — citation-vs-source verification and product-judgment triage. |
-| 2.5 Sync | `agent-test-kit sync <agent>` (deterministic CLI) | No — parses the edited `.review.md` files back into JSON/JS, validates via `ajv`, refuses to write on any error. |
+| 2.5 Sync + smoke | `agent-test-kit sync <agent>` then `agent-test-kit smoke <agent>` (deterministic CLI) | No — `sync` parses the edited `.review.md` files back into JSON/JS, validates via `ajv`, and refuses to write on any error; `smoke` then re-confirms the real `invoke-config.js` call still works against whatever Gate 1 just changed. Both run as one mechanical checkpoint, before Gate 2, since Gate 2 needs the synced `test-cases.json` to build its own mock inputs. |
 | 3. Gate 2 review | Claude Code skill (`plugin/skills/review-agent-invoke-config`) | Mixed — claim verification is judgment-based; it also actually executes `scriptChecks.js` against mock pass/fail inputs, which is mechanical once the mocks exist. |
 | 4. Run | `agent-test-kit run <agent>` (deterministic CLI) | No — pure execution. Refuses to run unless schema-valid and both gates are approved. |
 

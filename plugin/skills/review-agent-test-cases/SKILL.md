@@ -47,14 +47,30 @@ Separate your findings into two buckets:
   case even be in v1 scope) — list these explicitly as "needs your decision,"
   with the tradeoff stated plainly, and do not resolve them yourself.
 
-## 5. Sync, then record and ask
+## 5. Sync, then smoke-test — the mechanical checkpoint before Gate 2
 
 Any content fix from step 4 happens by editing `test-cases.review.md`/
 `rubrics.review.md` directly, never the JSON/JS. Once edits (if any) are in,
 run `npx agent-test-kit sync <agent>` — it parses both `.review.md` files
-back into `test-cases.json`/`rubrics.js`, validates via `ajv`, and refuses to
-write anything on any error (report those errors and fix the `.review.md`
-files, then re-run `sync`). Only proceed once `sync` succeeds.
+back into `test-cases.json`/`rubrics.js`, validates schema + rubric
+cross-references + `scriptChecks.js` completeness, and refuses to write
+anything on any error (report those errors and fix the `.review.md` files,
+then re-run `sync`). Only proceed once `sync` succeeds.
+
+This step matters because Gate 2 review (`review-agent-invoke-config`) reads
+real test cases straight out of `test-cases.json` to build its mock
+pass/fail inputs — that has to already reflect Gate 1's edits, which is why
+`sync` runs here, before Gate 2, rather than after final approval.
+
+Once `sync` has written a clean `test-cases.json`/`rubrics.js`, run
+`npx agent-test-kit smoke <agent>` to re-confirm the real invoke-config.js
+wiring still works against whatever the reviewer just changed. Report the
+smoke test's actual output (the response it got back) — don't just report
+"passed." A smoke failure here means something (a rubric edit, a probe
+change) broke the real call path — fix it and re-run `sync`/`smoke` before
+moving on, same as any other Gate 1 finding.
+
+## 6. Record and ask
 
 Write your findings into `<agentsDir>/<agent>/review-status.json`'s
 `gate1.notes` (reviewer/date left for the human to fill in, or filled in with
