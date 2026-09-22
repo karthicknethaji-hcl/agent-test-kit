@@ -105,6 +105,34 @@ async function testMarkdownSinkWritesTableAndSummary() {
   assert.ok(/\*\*Summary:\*\* 2\/2 passed/.test(content), 'finalize() must append a summary line: ' + content);
 }
 
+async function testMarkdownSinkDefaultsToAFreshTimestampedFilePerRun() {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-test-kit-md-default-'));
+
+  // No filePath given (the zero-config case, matching what config.js's
+  // default createResultsSink() does): each sink instance must land in its
+  // own file under a results directory, not a single fixed path.
+  const sinkA = createMarkdownSink({ dir: tmpDir });
+  const sinkB = createMarkdownSink({ dir: tmpDir });
+  assert.notStrictEqual(sinkA.filePath, sinkB.filePath, 'two separate runs must never write to the same default file path');
+
+  const resultsDir = path.join(tmpDir, '.agent-test-kit-results');
+  assert.strictEqual(path.dirname(sinkA.filePath), resultsDir, 'the default file must live under .agent-test-kit-results/');
+  assert.ok(/^run-.+\.md$/.test(path.basename(sinkA.filePath)), 'the default filename must be timestamped: ' + sinkA.filePath);
+
+  await sinkA.write({ testId: 'A-1', category: 'c', metric: 'm', pass: true, score: 1, evaluator: 'e', recommendation: null, runId: 'r1', agentName: 'agent', timestamp: new Date().toISOString() });
+  await sinkB.write({ testId: 'B-1', category: 'c', metric: 'm', pass: true, score: 1, evaluator: 'e', recommendation: null, runId: 'r2', agentName: 'agent', timestamp: new Date().toISOString() });
+
+  assert.ok(fs.readFileSync(sinkA.filePath, 'utf8').includes('A-1'), 'sinkA must only contain its own run\'s row');
+  assert.ok(!fs.readFileSync(sinkA.filePath, 'utf8').includes('B-1'), 'sinkA must not contain sinkB\'s row — no cross-run overwrite/append');
+
+  // An explicit filePath must still opt back into the old single-file,
+  // append-forever behavior, for anyone who wants it.
+  const fixedPath = path.join(tmpDir, 'fixed-results.md');
+  const sinkC = createMarkdownSink({ filePath: fixedPath });
+  const sinkD = createMarkdownSink({ filePath: fixedPath });
+  assert.strictEqual(sinkC.filePath, sinkD.filePath, 'an explicit filePath must be honored exactly, not timestamped');
+}
+
 async function testMultiSinkFansOutToEverySink() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-test-kit-multi-'));
   const mdPath = path.join(tmpDir, 'results.md');
@@ -479,6 +507,7 @@ async function main() {
     testValidateAgentRejectsMalformedTestCases,
     testRunSuitePassesBothExampleRubrics,
     testMarkdownSinkWritesTableAndSummary,
+    testMarkdownSinkDefaultsToAFreshTimestampedFilePerRun,
     testMultiSinkFansOutToEverySink,
     testTraceResolverReceivesAgentNameAlongsideClientTraceId,
     testGateEnforcementLogic,

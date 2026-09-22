@@ -18,8 +18,11 @@ module.exports = {
   // createJudgeClient: () => adapters.createAnthropicJudgeClient(),
 
   // createResultsSink() => { write(row), finalize(runSummary)? }
-  // Default: append a human-readable Markdown report to .agent-test-kit-results.md.
-  // createResultsSink: () => adapters.createMarkdownSink(),
+  // Default: a fresh, timestamped Markdown report per run, under
+  // .agent-test-kit-results/ (e.g. run-2026-09-22T14-05-33-123Z.md) — never
+  // overwritten or silently appended to by a later run. Pass an explicit
+  // filePath to opt back into one single file every run appends to instead:
+  // createResultsSink: () => adapters.createMarkdownSink({ filePath: '...' }),
   //
   // Other sinks ship in the box too — jsonFileSink (machine-readable NDJSON),
   // supabaseSink (writes to this package's OWN fixed table,

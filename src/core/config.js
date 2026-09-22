@@ -36,7 +36,11 @@ function loadConfig(startDir) {
     root,
     agentsDir,
     createJudgeClient: userConfig.createJudgeClient || (() => createAnthropicJudgeClient()),
-    createResultsSink: userConfig.createResultsSink || (() => createMarkdownSink({ filePath: path.join(root, '.agent-test-kit-results.md') })),
+    // `dir`, not a fixed `filePath` — so the zero-config default gets a
+    // fresh, timestamped file per run (see markdownSink.js) rooted at the
+    // config's own directory rather than whatever process.cwd() happens to
+    // be, without this file needing to know that naming scheme itself.
+    createResultsSink: userConfig.createResultsSink || (() => createMarkdownSink({ dir: root })),
     createCredentialResolver: userConfig.createCredentialResolver || (() => createEnvCredentialResolver()),
     createTraceResolver: userConfig.createTraceResolver || (() => createIdentityTraceResolver())
   };

@@ -6,6 +6,25 @@ this changelog specifically, separate from `package.json`'s npm semver
 version (which follows normal semver rules and is bumped independently when
 the package is actually published).
 
+## [0.02] - 2026-09-22
+
+### Changed
+
+- `markdownSink`'s zero-config default no longer writes to a single fixed
+  `.agent-test-kit-results.md` that every run appends to. It now writes a
+  fresh, timestamped file per run under `.agent-test-kit-results/`
+  (`run-<ISO timestamp>-<random suffix>.md`) — nothing is ever overwritten,
+  and a run's results aren't buried inside a growing, ever-larger file
+  either. The random suffix guards against two runs starting within the
+  same millisecond colliding on a filename.
+- Pass an explicit `filePath` to `createMarkdownSink({ filePath: '...' })`
+  to opt back into the old single-file, append-forever behavior.
+- Updated `.gitignore`, the scaffolded `agent-test-kit.config.js` comment
+  (`init.js`), and `docs/CONTRACT.md`'s adapter table accordingly.
+- `jsonFileSink` (NDJSON) is unchanged — its append-per-row semantics are a
+  deliberate machine-readable log across runs, a different use case from
+  the human-readable Markdown report this change addresses.
+
 ## [0.01] - 2026-09-22
 
 Baseline entry — covers the sink-reliability + Markdown-authoring feature
