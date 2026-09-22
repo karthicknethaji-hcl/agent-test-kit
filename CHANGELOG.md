@@ -6,6 +6,29 @@ this changelog specifically, separate from `package.json`'s npm semver
 version (which follows normal semver rules and is bumped independently when
 the package is actually published).
 
+## [0.07] - 2026-09-22
+
+### Changed
+
+- Prepared the package for a real public npm release, replacing the
+  GitHub Packages private-registry setup:
+  - Added an MIT `LICENSE` file; `package.json`'s `license` field changed
+    from `UNLICENSED` to `MIT`, and `publishConfig` now sets
+    `access: "public"` instead of pointing at `npm.pkg.github.com`.
+  - `.github/workflows/publish.yml` now publishes to `registry.npmjs.org`
+    using an `NPM_TOKEN` repo secret (an npm Automation token, created by
+    hand on npmjs.com) instead of `GITHUB_TOKEN`.
+  - `README.md` and `docs/GETTING-STARTED.md`'s install instructions no
+    longer mention `.npmrc` scope config or registry authentication.
+
+### Not done yet (requires manual action outside this repo)
+
+- The actual `npm publish` hasn't happened — that needs an npm
+  user/org named `karthicknethaji-hcl` to exist, 2FA enabled, an
+  "Automation" access token generated on npmjs.com, and that token added
+  as this repo's `NPM_TOKEN` GitHub Actions secret. Only after that is in
+  place does pushing a `vX.Y.Z` tag actually publish anything.
+
 ## [0.06] - 2026-09-22
 
 ### Changed

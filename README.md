@@ -38,36 +38,33 @@ Full walkthrough: `docs/GETTING-STARTED.md`. File/interface contracts:
 
 ## Status
 
-**Private preview.** Published to a private registry only (see below) while
-it's validated against real agents outside the codebase it was extracted
-from. Public npm release is a later, separate decision.
+**Public.** Published to the public npm registry — `npm install` works for
+anyone, no authentication required. MIT licensed (see `LICENSE`).
 
 ## Publishing (maintainers)
 
-Publishing to GitHub Packages happens via `.github/workflows/publish.yml`,
-triggered by pushing a `vX.Y.Z` tag (or manually via "Run workflow" in the
-Actions tab). It uses GitHub's own built-in `GITHUB_TOKEN` — no publish
-token is ever stored in this repo or handled outside CI.
+Publishing happens via `.github/workflows/publish.yml`, triggered by pushing
+a `vX.Y.Z` tag (or manually via "Run workflow" in the Actions tab). It needs
+an `NPM_TOKEN` repo secret — an npm "Automation" access token for the
+`@karthicknethaji-hcl` user/org, created by hand on npmjs.com (Settings ->
+Secrets and variables -> Actions in this repo to add it; nothing in CI can
+create that token itself).
 
 ```
 npm version 0.1.1   # bumps package.json + creates the git tag
 git push --follow-tags
 ```
 
-## Installing from the private registry
-
-This package publishes to GitHub Packages under this org. In the consuming
-repo, add to `.npmrc`:
-
-```
-@karthicknethaji-hcl:registry=https://npm.pkg.github.com
-```
-
-Then authenticate (`npm login --registry=https://npm.pkg.github.com`, or a
-`NODE_AUTH_TOKEN`/`GITHUB_TOKEN` with `read:packages` scope in CI) and:
+## Installing
 
 ```
 npm install --save-dev @karthicknethaji-hcl/agent-test-kit
+```
+
+Or without installing, via `npx`:
+
+```
+npx @karthicknethaji-hcl/agent-test-kit init
 ```
 
 ## Installing the Claude Code plugin

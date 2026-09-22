@@ -2,14 +2,13 @@
 
 ## Install
 
-Private registry for now — see the root `README.md` "Installing from the
-private registry" for the `.npmrc` scope config, then:
+Public on npm — no registry config or authentication needed:
 
 ```
 npm install --save-dev @karthicknethaji-hcl/agent-test-kit
 ```
 
-Or without installing, via `npx` once the registry is configured:
+Or without installing, via `npx`:
 
 ```
 npx @karthicknethaji-hcl/agent-test-kit init
