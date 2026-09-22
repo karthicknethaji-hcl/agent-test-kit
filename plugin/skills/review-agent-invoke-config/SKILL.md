@@ -55,7 +55,13 @@ approve past it.
 
 ## 4. Record and ask
 
-Write findings into `review-status.json`'s `gate2.notes`. Ask the reviewer
+Before asking, recap every finding from steps 2-3 in one consolidated list
+right here — don't rely on the reviewer scrolling back through the
+conversation. Note explicitly which claims were verified vs. flagged as
+approximation-presented-as-real, and which `scriptChecks.js` handlers failed
+the discrimination test in step 3.
+
+Write that same list into `review-status.json`'s `gate2.notes`. Ask the reviewer
 explicitly: "Gate 2 findings above — do you approve `invoke-config.js`
 (and `scriptChecks.js`) as-is, or do you want changes first?" Only set
 `gate2.approved: true` (and fill in `reviewer`/`date`) after they say yes —

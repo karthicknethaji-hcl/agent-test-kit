@@ -89,8 +89,9 @@ function addAgent(agentsDir, agentName) {
   saveReviewStatus(agentDir, defaultReviewStatus());
 
   console.log('Scaffolded ' + agentDir);
-  console.log('Next: fill in invoke-config.js, author real test-cases.json/rubrics.js, then:');
-  console.log('  npx agent-test-kit validate ' + agentName);
+  console.log('Next: in Claude Code, ask the bundled plugin to draft this agent\'s test suite from');
+  console.log('its real source — e.g. "Onboard ' + agentName + ' to agent-test-kit — its source is at <file path>."');
+  console.log('(See docs/GETTING-STARTED.md "Onboard your own agent", step 3.)');
 }
 
 module.exports = { addAgent };

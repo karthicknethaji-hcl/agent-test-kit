@@ -72,7 +72,12 @@ moving on, same as any other Gate 1 finding.
 
 ## 6. Record and ask
 
-Write your findings into `<agentsDir>/<agent>/review-status.json`'s
+Before asking, recap every finding from steps 2-4 in one consolidated list
+right here — don't rely on the reviewer scrolling back through the
+conversation. Split it the same way step 4 did: mechanical fixes (already
+applied or still open) vs. genuine policy calls still awaiting a decision.
+
+Write that same list into `<agentsDir>/<agent>/review-status.json`'s
 `gate1.notes` (reviewer/date left for the human to fill in, or filled in with
 their name once they confirm). Ask the reviewer explicitly: "Gate 1 findings
 above — do you approve this test suite as-is, or do you want changes first?"

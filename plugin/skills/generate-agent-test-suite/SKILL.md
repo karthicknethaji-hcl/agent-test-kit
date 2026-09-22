@@ -100,6 +100,20 @@ edits (see `review-agent-test-cases`), not the raw JSON/JS.
 
 ## 5. Hand off
 
-Tell the caller the draft is ready for Gate 1 (`review-agent-test-cases`) and
-Gate 2 (`review-agent-invoke-config`) review — this skill never approves its
-own output.
+End with an explicit file list the caller can click straight into — never
+just a prose sentence saying the draft is "ready":
+
+- **Files created/modified**, each as its own full relative path (e.g.
+  `test-suite/agents/<name>/test-cases.json`), one line each, with a
+  one-clause reason (new file, schema fix, content rewrite against real
+  source, etc.).
+- **What to actually open for review** — the `.review.md` files `render`
+  just produced, not the raw JSON/JS: `test-suite/agents/<name>/test-cases.review.md`
+  and `test-suite/agents/<name>/rubrics.review.md` for Gate 1
+  (`review-agent-test-cases`), plus `test-suite/agents/<name>/invoke-config.js`
+  (and `scriptChecks.js` if present) for Gate 2 (`review-agent-invoke-config`).
+- **Anything that needs a decision before review** (e.g. couldn't call the
+  real code path and used an approximation instead) — flagged plainly, not
+  buried in prose.
+
+This skill never approves its own output.
