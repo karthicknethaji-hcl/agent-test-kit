@@ -197,12 +197,16 @@ consuming repo.
   `agentName` is passed alongside the id so a real lookup can scope its
   query correctly (a `clientTraceId` alone isn't guaranteed unique across
   agents sharing one trace table).
+- **`createResultsSink(agentName)`** (the config factory, not the sink
+  itself): called by `run`/`smoke` with the agent's name, so the zero-config
+  `markdownSink` default can fold it into its filename. A custom override may
+  ignore the argument if it doesn't need it.
 
 ### Built-in `resultsSink` adapters
 
 | Adapter | Default? | Notes |
 |---|---|---|
-| `markdownSink` | Yes | Zero-config default: a fresh, timestamped `.md` file per run under `.agent-test-kit-results/` (`run-<ISO timestamp>.md`) — never overwritten, and no growing-forever single file to scroll through. Pass an explicit `filePath` to opt back into one fixed file every run appends its own `##` section to. Zero dependencies. |
+| `markdownSink` | Yes | Zero-config default: a fresh, timestamped `.md` file per run under `.agent-test-kit-results/` (`run-<agentName>-<ISO timestamp>.md`) — never overwritten, and no growing-forever single file to scroll through. Pass an explicit `filePath` to opt back into one fixed file every run appends its own `##` section to. Zero dependencies. |
 | `jsonFileSink` | No | Appends one NDJSON line per row. Zero dependencies. Machine-readable. |
 | `consoleSink` | No | No persistence at all — discards every row. |
 | `supabaseSink` | No | Opinionated, not generic — `{supabaseUrl, supabaseServiceRoleKey}` only. Always writes to the same fixed table, `agent_test_kit_quality_scores` (schema: `sql/agent-test-kit-quality-scores-migration.sql`, run it yourself once), with the same columns, in every adopting repo — deliberate, so one dashboard/reporting tool can be built against any repo using this package. This package has no hard dependency on `@supabase/supabase-js` (lazily `require`'d, but declared as an `optionalDependency` so it resolves correctly even via a symlinked `file:` install). Insert failures warn, never fail the run — but are tracked (`getStats()`) and probed up front (`preflight()`) so a "configured but failing" DB is impossible to miss (see `docs/SPEC-sink-reliability-and-md-authoring.md` "Feature 1"). |

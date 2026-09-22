@@ -97,7 +97,7 @@ async function runCmd(config, agentName, opts) {
 
   const { testCasesModule, rubricsConfig, invoke, scriptChecks } = loadAgent(agentDir);
   const callJudgeModel = config.createJudgeClient();
-  const resultsSink = config.createResultsSink();
+  const resultsSink = config.createResultsSink(agentName);
   const traceResolver = config.createTraceResolver();
 
   await runPreflight(resultsSink);

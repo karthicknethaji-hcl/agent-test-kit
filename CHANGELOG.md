@@ -6,6 +6,18 @@ this changelog specifically, separate from `package.json`'s npm semver
 version (which follows normal semver rules and is bumped independently when
 the package is actually published).
 
+## [0.05] - 2026-09-22
+
+### Changed
+
+- `markdownSink`'s default per-run filename now includes the agent's name
+  (`run-<agentName>-<ISO timestamp>-<random suffix>.md`, e.g.
+  `run-example-agent-2026-09-22T07-21-18-941Z-2d9789.md`) instead of just a
+  timestamp — a report is now identifiable from its filename alone. `run`
+  and `smoke` now call `config.createResultsSink(agentName)` (previously
+  zero-arg); a custom `createResultsSink` override may ignore the new
+  argument if it doesn't need it.
+
 ## [0.04] - 2026-09-22
 
 ### Fixed

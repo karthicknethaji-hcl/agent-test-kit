@@ -40,7 +40,10 @@ function loadConfig(startDir) {
     // fresh, timestamped file per run (see markdownSink.js) rooted at the
     // config's own directory rather than whatever process.cwd() happens to
     // be, without this file needing to know that naming scheme itself.
-    createResultsSink: userConfig.createResultsSink || (() => createMarkdownSink({ dir: root })),
+    // `agentName` is passed through from the CLI command (run/smoke) so the
+    // default filename identifies which agent a report belongs to; a custom
+    // `createResultsSink` override may ignore the argument if it doesn't need it.
+    createResultsSink: userConfig.createResultsSink || ((agentName) => createMarkdownSink({ dir: root, agentName })),
     createCredentialResolver: userConfig.createCredentialResolver || (() => createEnvCredentialResolver()),
     createTraceResolver: userConfig.createTraceResolver || (() => createIdentityTraceResolver())
   };

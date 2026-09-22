@@ -17,11 +17,12 @@ module.exports = {
   // Default: direct Anthropic API call using process.env.ANTHROPIC_API_KEY.
   // createJudgeClient: () => adapters.createAnthropicJudgeClient(),
 
-  // createResultsSink() => { write(row), finalize(runSummary)? }
+  // createResultsSink(agentName) => { write(row), finalize(runSummary)? }
   // Default: a fresh, timestamped Markdown report per run, under
-  // .agent-test-kit-results/ (e.g. run-2026-09-22T14-05-33-123Z.md) — never
-  // overwritten or silently appended to by a later run. Pass an explicit
-  // filePath to opt back into one single file every run appends to instead:
+  // .agent-test-kit-results/ (e.g. run-my-agent-2026-09-22T14-05-33-123Z.md)
+  // — never overwritten or silently appended to by a later run. Pass an
+  // explicit filePath to opt back into one single file every run appends to
+  // instead:
   // createResultsSink: () => adapters.createMarkdownSink({ filePath: '...' }),
   //
   // Other sinks ship in the box too — jsonFileSink (machine-readable NDJSON),

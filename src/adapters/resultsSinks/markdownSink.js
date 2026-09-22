@@ -4,7 +4,8 @@
 // database, a JSON viewer, or this package's own tooling.
 //
 // Zero-config default: a fresh, timestamped file per run
-// (.agent-test-kit-results/run-<timestamp>.md) — a run's results are never
+// (.agent-test-kit-results/run-<agentName>-<timestamp>.md, or just
+// run-<timestamp>.md if no agentName is given) — a run's results are never
 // silently appended to (and visually buried inside) a previous run's file,
 // and nothing gets overwritten by a later run either. Pass an explicit
 // `filePath` to opt back into a single fixed file that every run appends to
@@ -32,13 +33,14 @@ function timestampForFilename() {
   return new Date().toISOString().replace(/[:.]/g, '-') + '-' + crypto.randomBytes(3).toString('hex');
 }
 
-function defaultFilePath(dir) {
-  return path.join(dir, '.agent-test-kit-results', 'run-' + timestampForFilename() + '.md');
+function defaultFilePath(dir, agentName) {
+  const name = 'run-' + (agentName ? agentName + '-' : '') + timestampForFilename() + '.md';
+  return path.join(dir, '.agent-test-kit-results', name);
 }
 
 function createMarkdownSink(options) {
   const opts = options || {};
-  const filePath = opts.filePath || defaultFilePath(opts.dir || process.cwd());
+  const filePath = opts.filePath || defaultFilePath(opts.dir || process.cwd(), opts.agentName);
 
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
 

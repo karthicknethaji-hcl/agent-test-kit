@@ -119,6 +119,11 @@ async function testMarkdownSinkDefaultsToAFreshTimestampedFilePerRun() {
   assert.strictEqual(path.dirname(sinkA.filePath), resultsDir, 'the default file must live under .agent-test-kit-results/');
   assert.ok(/^run-.+\.md$/.test(path.basename(sinkA.filePath)), 'the default filename must be timestamped: ' + sinkA.filePath);
 
+  // An agentName, when given (as run/smoke now always pass), must appear in
+  // the default filename so a report is identifiable without opening it.
+  const sinkNamed = createMarkdownSink({ dir: tmpDir, agentName: 'my-agent' });
+  assert.ok(/^run-my-agent-.+\.md$/.test(path.basename(sinkNamed.filePath)), 'the default filename must include agentName: ' + sinkNamed.filePath);
+
   await sinkA.write({ testId: 'A-1', category: 'c', metric: 'm', pass: true, score: 1, evaluator: 'e', recommendation: null, runId: 'r1', agentName: 'agent', timestamp: new Date().toISOString() });
   await sinkB.write({ testId: 'B-1', category: 'c', metric: 'm', pass: true, score: 1, evaluator: 'e', recommendation: null, runId: 'r2', agentName: 'agent', timestamp: new Date().toISOString() });
 
