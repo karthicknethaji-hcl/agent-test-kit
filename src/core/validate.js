@@ -19,32 +19,29 @@ function formatErrors(errors) {
   return (errors || []).map((e) => (e.instancePath || '(root)') + ' ' + e.message).join('; ');
 }
 
-/**
- * validateAgent(agentDir) -> { valid: boolean, errors: string[] }
- * Validates test-cases.json + rubrics.js against schema, then cross-checks
- * that every test case's `rubric` code actually has a matching entry in
- * rubrics.js, and that invoke-config.js exports the required contract
- * functions (see docs/CONTRACT.md).
- */
-function validateAgent(agentDir) {
-  const errors = [];
+// require()s a module bypassing Node's module cache — needed because
+// test-cases.json/rubrics.js/scriptChecks.js can be rewritten on disk by
+// `agent-test-kit sync` (src/core/mdAuthoring/sync.js) within the SAME
+// process (the CLI's own process, or a long-lived programmatic API
+// consumer), and a plain require() would otherwise keep returning the
+// content that was on disk the first time this path was required.
+function requireFresh(modulePath) {
+  const resolved = require.resolve(modulePath);
+  delete require.cache[resolved];
+  return require(resolved);
+}
 
-  let testCasesModule, rubricsConfig, invoke;
-  try {
-    testCasesModule = require(path.join(agentDir, 'test-cases.json'));
-  } catch (e) {
-    return { valid: false, errors: ['test-cases.json: ' + e.message] };
-  }
-  try {
-    rubricsConfig = require(path.join(agentDir, 'rubrics.js'));
-  } catch (e) {
-    return { valid: false, errors: ['rubrics.js: ' + e.message] };
-  }
-  try {
-    invoke = require(path.join(agentDir, 'invoke-config.js'));
-  } catch (e) {
-    return { valid: false, errors: ['invoke-config.js: ' + e.message] };
-  }
+/**
+ * validateContent(testCasesModule, rubricsConfig, agentDir) -> string[]
+ * The part of validation that only needs the two ALREADY-LOADED objects
+ * (schema, rubric cross-references, scriptChecks.js completeness) — no
+ * invoke-config.js involved. Shared by validateAgent() (which additionally
+ * checks invoke-config.js) and src/core/mdAuthoring/sync.js's syncAgent()
+ * (which never touches invoke-config.js), so the two commands can never
+ * silently disagree about what counts as valid content.
+ */
+function validateContent(testCasesModule, rubricsConfig, agentDir) {
+  const errors = [];
 
   if (!validateTestCases(testCasesModule)) errors.push('test-cases.json schema: ' + formatErrors(validateTestCases.errors));
   if (!validateRubrics(rubricsConfig)) errors.push('rubrics.js schema: ' + formatErrors(validateRubrics.errors));
@@ -57,17 +54,13 @@ function validateAgent(agentDir) {
     }
   }
 
-  if (typeof invoke.agentName !== 'string' || !invoke.agentName) errors.push('invoke-config.js: missing string export "agentName"');
-  if (typeof invoke.createConversationState !== 'function') errors.push('invoke-config.js: missing function export "createConversationState()"');
-  if (typeof invoke.sendMessage !== 'function') errors.push('invoke-config.js: missing function export "async sendMessage(state, action)"');
-
   const hasScriptDiff = rubricsConfig && Object.values(rubricsConfig).some((r) => r && r.evaluatorType === 'script_diff');
   if (hasScriptDiff) {
     const scriptChecksPath = path.join(agentDir, 'scriptChecks.js');
     if (!fs.existsSync(scriptChecksPath)) {
       errors.push('rubrics.js declares at least one script_diff rubric but scriptChecks.js is missing at ' + scriptChecksPath);
     } else {
-      const scriptChecks = require(scriptChecksPath);
+      const scriptChecks = requireFresh(scriptChecksPath);
       for (const [code, rubric] of Object.entries(rubricsConfig)) {
         if (rubric.evaluatorType === 'script_diff' && typeof scriptChecks[code] !== 'function') {
           errors.push('scriptChecks.js has no handler function for rubric "' + code + '" (evaluatorType: script_diff)');
@@ -76,7 +69,41 @@ function validateAgent(agentDir) {
     }
   }
 
+  return errors;
+}
+
+/**
+ * validateAgent(agentDir) -> { valid: boolean, errors: string[] }
+ * Validates test-cases.json + rubrics.js against schema, then cross-checks
+ * that every test case's `rubric` code actually has a matching entry in
+ * rubrics.js, and that invoke-config.js exports the required contract
+ * functions (see docs/CONTRACT.md).
+ */
+function validateAgent(agentDir) {
+  let testCasesModule, rubricsConfig, invoke;
+  try {
+    testCasesModule = requireFresh(path.join(agentDir, 'test-cases.json'));
+  } catch (e) {
+    return { valid: false, errors: ['test-cases.json: ' + e.message] };
+  }
+  try {
+    rubricsConfig = requireFresh(path.join(agentDir, 'rubrics.js'));
+  } catch (e) {
+    return { valid: false, errors: ['rubrics.js: ' + e.message] };
+  }
+  try {
+    invoke = requireFresh(path.join(agentDir, 'invoke-config.js'));
+  } catch (e) {
+    return { valid: false, errors: ['invoke-config.js: ' + e.message] };
+  }
+
+  const errors = validateContent(testCasesModule, rubricsConfig, agentDir);
+
+  if (typeof invoke.agentName !== 'string' || !invoke.agentName) errors.push('invoke-config.js: missing string export "agentName"');
+  if (typeof invoke.createConversationState !== 'function') errors.push('invoke-config.js: missing function export "createConversationState()"');
+  if (typeof invoke.sendMessage !== 'function') errors.push('invoke-config.js: missing function export "async sendMessage(state, action)"');
+
   return { valid: errors.length === 0, errors };
 }
 
-module.exports = { validateAgent };
+module.exports = { validateAgent, validateContent, formatErrors, requireFresh };

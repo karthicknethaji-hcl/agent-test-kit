@@ -12,8 +12,11 @@ itself; it records findings and asks the reviewer to decide.
 
 ## 1. Load context
 
-- `<agentsDir>/<agent>/test-cases.json` and `rubrics.js` (required — if
-  missing, point at `generate-agent-test-suite` instead).
+- `<agentsDir>/<agent>/test-cases.review.md` and `rubrics.review.md` —
+  **this is what the reviewer actually edits**, not the raw JSON/JS. If
+  they don't exist yet, run `npx agent-test-kit render <agent>` first (or
+  point at `generate-agent-test-suite` if `test-cases.json` itself is
+  missing).
 - The agent's real source code each test case claims to be testing.
 - Every OTHER agent's `rubrics.js` under `agentsDir`, for the collision check
   below.
@@ -44,11 +47,24 @@ Separate your findings into two buckets:
   case even be in v1 scope) — list these explicitly as "needs your decision,"
   with the tradeoff stated plainly, and do not resolve them yourself.
 
-## 5. Record and ask
+## 5. Sync, then record and ask
+
+Any content fix from step 4 happens by editing `test-cases.review.md`/
+`rubrics.review.md` directly, never the JSON/JS. Once edits (if any) are in,
+run `npx agent-test-kit sync <agent>` — it parses both `.review.md` files
+back into `test-cases.json`/`rubrics.js`, validates via `ajv`, and refuses to
+write anything on any error (report those errors and fix the `.review.md`
+files, then re-run `sync`). Only proceed once `sync` succeeds.
 
 Write your findings into `<agentsDir>/<agent>/review-status.json`'s
 `gate1.notes` (reviewer/date left for the human to fill in, or filled in with
 their name once they confirm). Ask the reviewer explicitly: "Gate 1 findings
 above — do you approve this test suite as-is, or do you want changes first?"
 Only set `gate1.approved: true` (and fill in `reviewer`/`date`) after they say
-yes.
+yes — and when you do, also stamp
+`gate1.approvedContentHash` with the current combined-content hash so later
+drift can be detected:
+
+```
+node -e "console.log(require('agent-test-kit').reviewStatus.computeContentHash('<agentsDir>/<agent>'))"
+```

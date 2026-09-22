@@ -7,6 +7,9 @@ const { validateCmd } = require('../src/cli/commands/validateCmd');
 const { statusCmd } = require('../src/cli/commands/statusCmd');
 const { smokeCmd } = require('../src/cli/commands/smokeCmd');
 const { runCmd } = require('../src/cli/commands/runCmd');
+const { renderCmd } = require('../src/cli/commands/renderCmd');
+const { syncCmd } = require('../src/cli/commands/syncCmd');
+const { checkMdStalenessCmd } = require('../src/cli/commands/checkMdStalenessCmd');
 
 function parseFlags(argv) {
   const flags = { only: null, all: false, force: false, skipGateCheck: false };
@@ -33,6 +36,9 @@ Usage:
   agent-test-kit smoke <name>                Call the agent once, confirm a real response comes back
   agent-test-kit run <name> [--only a,b] [--all] [--skip-gate-check]
                                               Run the agent's approved test suite
+  agent-test-kit render <name>               Write test-cases.review.md + rubrics.review.md from JSON
+  agent-test-kit sync <name>                 Parse the .review.md files back into JSON, validate, write
+  agent-test-kit check-md-staleness <name>   Warn if .review.md holds edits never synced to JSON (read-only)
 
 See docs/GETTING-STARTED.md.`);
 }
@@ -80,6 +86,25 @@ async function main() {
   if (command === 'run') {
     const config = loadConfig(cwd);
     await runCmd(config, positional[0], flags);
+    return;
+  }
+
+  if (command === 'render') {
+    const config = loadConfig(cwd);
+    renderCmd(config.agentsDir, positional[0]);
+    return;
+  }
+
+  if (command === 'sync') {
+    const config = loadConfig(cwd);
+    const ok = syncCmd(config.agentsDir, positional[0]);
+    process.exitCode = ok ? 0 : 1;
+    return;
+  }
+
+  if (command === 'check-md-staleness') {
+    const config = loadConfig(cwd);
+    checkMdStalenessCmd(config.agentsDir, positional[0]);
     return;
   }
 

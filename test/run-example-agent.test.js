@@ -9,13 +9,39 @@ const path = require('path');
 const { validateAgent } = require('../src/core/validate');
 const { runSuite } = require('../src/core/runner');
 const { loadAgent } = require('../src/core/loadAgent');
-const { isFullyApproved, defaultReviewStatus } = require('../src/core/reviewStatus');
+const { isFullyApproved, defaultReviewStatus, computeContentHash, checkGateContentDrift } = require('../src/core/reviewStatus');
 const { createConsoleSink } = require('../src/adapters/resultsSinks/consoleSink');
 const { createMarkdownSink } = require('../src/adapters/resultsSinks/markdownSink');
 const { createMultiSink } = require('../src/adapters/resultsSinks/multiSink');
 const { createIdentityTraceResolver } = require('../src/adapters/traceResolvers/identityTraceResolver');
+const { runCmd } = require('../src/cli/commands/runCmd');
+const { renderAgent } = require('../src/core/mdAuthoring/render');
+const { syncAgent, checkMdStaleness } = require('../src/core/mdAuthoring/sync');
 
 const EXAMPLE_AGENT_DIR = path.join(__dirname, '..', 'examples', 'example-agent');
+const EXAMPLES_DIR = path.join(__dirname, '..', 'examples');
+
+async function captureConsole(fn) {
+  const logs = [];
+  const warns = [];
+  const origLog = console.log;
+  const origWarn = console.warn;
+  console.log = (...args) => logs.push(args.join(' '));
+  console.warn = (...args) => warns.push(args.join(' '));
+  try {
+    await fn();
+  } finally {
+    console.log = origLog;
+    console.warn = origWarn;
+  }
+  return { logs, warns };
+}
+
+function copyExampleAgentInto(tmpDir) {
+  for (const f of fs.readdirSync(EXAMPLE_AGENT_DIR)) {
+    fs.copyFileSync(path.join(EXAMPLE_AGENT_DIR, f), path.join(tmpDir, f));
+  }
+}
 
 async function stubJudgeClient(promptText) {
   // Every judgePromptTemplate in the example agent asks for a "violated"
@@ -138,6 +164,315 @@ async function testGateEnforcementLogic() {
   );
 }
 
+// --- Feature 1: sink-failure visibility (preflight + getStats) ---
+
+async function testPreflightFailureIsReportedButRunContinues() {
+  const fakeSink = {
+    describe() { return 'Fake Sink'; },
+    async preflight() { return { ok: false, reason: 'relation does not exist' }; },
+    async write() {}
+  };
+  const config = {
+    agentsDir: EXAMPLES_DIR,
+    createJudgeClient: () => stubJudgeClient,
+    createResultsSink: () => fakeSink,
+    createTraceResolver: () => createIdentityTraceResolver()
+  };
+
+  const { warns } = await captureConsole(() => runCmd(config, 'example-agent', { all: true }));
+  assert.ok(
+    warns.some((w) => w.includes('Fake Sink') && w.includes('relation does not exist')),
+    'a failing preflight() must be warned about: ' + JSON.stringify(warns)
+  );
+  assert.strictEqual(process.exitCode, 0, 'a failing preflight must never stop the run or fail it');
+  process.exitCode = undefined;
+}
+
+async function testGetStatsReflectedInPersistenceSummary() {
+  let attempted = 0;
+  let failed = 0;
+  const fakeSink = {
+    describe() { return 'Fake DB'; },
+    async write(row) {
+      attempted++;
+      if (row.testId === 'EX-002') failed++;
+    },
+    getStats() { return { attempted, failed }; }
+  };
+  const config = {
+    agentsDir: EXAMPLES_DIR,
+    createJudgeClient: () => stubJudgeClient,
+    createResultsSink: () => fakeSink,
+    createTraceResolver: () => createIdentityTraceResolver()
+  };
+
+  const { logs } = await captureConsole(() => runCmd(config, 'example-agent', { all: true }));
+  assert.ok(
+    logs.some((l) => /Fake DB: 1\/2 rows persisted — 1 failed \(see warnings above\)/.test(l)),
+    'the persistence summary must reflect getStats() counts: ' + JSON.stringify(logs)
+  );
+  process.exitCode = undefined;
+}
+
+// --- Feature 2: Markdown authoring round-trip ---
+
+async function testMdRoundTripForExampleAgent() {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-test-kit-md-'));
+  copyExampleAgentInto(tmpDir);
+  const originalTestCases = JSON.parse(fs.readFileSync(path.join(tmpDir, 'test-cases.json'), 'utf8'));
+  const originalRubrics = require(path.join(tmpDir, 'rubrics.js'));
+
+  const { testCasesMd, rubricsMd } = renderAgent(tmpDir);
+  const { testCasesModule, rubricsConfig } = syncAgent(tmpDir, { testCasesMd, rubricsMd });
+
+  assert.deepStrictEqual(testCasesModule, originalTestCases, 'test-cases.json must round-trip exactly through render() -> sync()');
+  assert.deepStrictEqual(rubricsConfig, originalRubrics, 'rubrics.js must round-trip exactly through render() -> sync()');
+}
+
+async function testMdRoundTripForComplexFixture() {
+  // example-agent only exercises single-turn + script_diff/llm_judge without
+  // setup/judgeContext/thresholds. This fixture covers the rest of the
+  // shape space the schema allows (dual-conversation, multi-turn with
+  // setup, judgeContext, scale+threshold, toxicity_scan) — standing in for
+  // test-suite/agents/capability-canvas, which doesn't exist in this repo.
+  const testCasesModule = {
+    agentName: 'complex-agent',
+    schemaVersion: '1.0',
+    sourceDoc: 'docs/complex-agent-spec.md',
+    note: 'Synthetic fixture exercising every executionMode/field combo.',
+    testCases: [
+      {
+        testId: 'CX-001',
+        category: 'dd-format',
+        rubric: 'DD-FMT',
+        v1Scope: true,
+        executionMode: 'single-turn',
+        probe: { mode: 'dd', nested: { a: [1, 2, 3], b: null } },
+        setup: [],
+        judgeContext: { extra: 'info', count: 2 },
+        expectedBehaviorNote: 'Model should preserve the literal "—" placeholder in the DD template\'s L4 field.\nSecond line of the note.',
+        failureModeNote: 'Model substitutes an em dash or removes the placeholder entirely.'
+      },
+      {
+        testId: 'CX-002',
+        category: 'multi-step',
+        rubric: 'MT1',
+        v1Scope: false,
+        executionMode: 'multi-turn',
+        setup: [{ content: 'first message' }, { content: 'second message' }],
+        probe: { content: 'final probe' }
+      },
+      {
+        testId: 'CX-003',
+        category: 'consistency',
+        rubric: 'DUAL1',
+        v1Scope: true,
+        executionMode: 'dual-conversation',
+        conversationA: { setup: [{ content: 'seedA' }], probe: { content: 'probeA' } },
+        conversationB: { setup: [], probe: { content: 'probeB' } },
+        judgeContext: { compare: true },
+        expectedBehaviorNote: 'Both conversations should agree.',
+        failureModeNote: 'Conversations diverge.'
+      }
+    ]
+  };
+  const rubricsConfig = {
+    'DD-FMT': { metric: 'dd-format-fidelity', evaluatorType: 'script_diff' },
+    MT1: { metric: 'multi-turn-consistency', evaluatorType: 'llm_judge', scale: '0-1', threshold: 0.85, judgePromptTemplate: 'Line1\nLine2 with "quotes" and `backticks`\n{{output}}' },
+    DUAL1: { metric: 'dual-conversation-agreement', evaluatorType: 'toxicity_scan', scale: 'binary', judgePromptTemplate: 'Check toxicity.\n{{output}}' }
+  };
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-test-kit-md-complex-'));
+  fs.writeFileSync(path.join(tmpDir, 'test-cases.json'), JSON.stringify(testCasesModule, null, 2) + '\n', 'utf8');
+  fs.writeFileSync(path.join(tmpDir, 'rubrics.js'), 'module.exports = ' + JSON.stringify(rubricsConfig, null, 2) + ';\n', 'utf8');
+  // syncAgent() now runs the same scriptChecks.js completeness check as
+  // validateAgent() (a script_diff rubric needs a matching handler), so this
+  // fixture needs one for 'DD-FMT'.
+  fs.writeFileSync(path.join(tmpDir, 'scriptChecks.js'), 'module.exports = { \'DD-FMT\': () => ({ pass: true, score: 1, notes: {}, recommendation: null }) };\n', 'utf8');
+
+  const { testCasesMd, rubricsMd } = renderAgent(tmpDir);
+  const { testCasesModule: parsedTC, rubricsConfig: parsedRubrics } = syncAgent(tmpDir, { testCasesMd, rubricsMd });
+
+  assert.deepStrictEqual(parsedTC, testCasesModule, 'dual-conversation/setup/judgeContext fixture must round-trip exactly');
+  assert.deepStrictEqual(parsedRubrics, rubricsConfig, 'threshold/toxicity_scan rubrics must round-trip exactly');
+}
+
+async function testSyncRejectsMangledMarkdownAndWritesNothing() {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-test-kit-md-err-'));
+  copyExampleAgentInto(tmpDir);
+  const before = fs.readFileSync(path.join(tmpDir, 'test-cases.json'), 'utf8');
+
+  const { testCasesMd, rubricsMd } = renderAgent(tmpDir);
+  const probeFence = '```json\n{\n  "content": "Buy milk, eggs, and bread on the way home."\n}\n```';
+  assert.ok(testCasesMd.includes(probeFence), 'fixture assumption changed — update the mangled fence to match');
+  const mangled = testCasesMd.replace(probeFence, probeFence.slice(0, -4)); // drop the closing ```
+
+  let threw = false;
+  try {
+    syncAgent(tmpDir, { testCasesMd: mangled, rubricsMd });
+  } catch (e) {
+    threw = true;
+    assert.ok(/EX-001/.test(e.message) && /Probe/.test(e.message), 'the error must localize to the offending test case/section: ' + e.message);
+  }
+  assert.ok(threw, 'sync must throw on a malformed fenced block');
+  assert.strictEqual(fs.readFileSync(path.join(tmpDir, 'test-cases.json'), 'utf8'), before, 'test-cases.json must be untouched after a failed sync');
+}
+
+async function testCheckMdStalenessDetectsDriftAndClearsAfterSync() {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-test-kit-stale-'));
+  copyExampleAgentInto(tmpDir);
+
+  assert.deepStrictEqual(checkMdStaleness(tmpDir), [], 'no .review.md files yet -> nothing to report');
+
+  const { testCasesMd, rubricsMd } = renderAgent(tmpDir);
+  fs.writeFileSync(path.join(tmpDir, 'test-cases.review.md'), testCasesMd, 'utf8');
+  fs.writeFileSync(path.join(tmpDir, 'rubrics.review.md'), rubricsMd, 'utf8');
+  assert.deepStrictEqual(checkMdStaleness(tmpDir), [], 'freshly rendered MD must not be stale');
+
+  const original = fs.readFileSync(path.join(tmpDir, 'test-cases.json'), 'utf8');
+  fs.writeFileSync(path.join(tmpDir, 'test-cases.json'), original.replace('EX-001', 'EX-001-HAND-EDITED'), 'utf8');
+  assert.deepStrictEqual(checkMdStaleness(tmpDir), ['test-cases.review.md'], 'a hand-edited test-cases.json (bypassing the MD) must be flagged stale');
+
+  fs.writeFileSync(path.join(tmpDir, 'test-cases.json'), original, 'utf8');
+  syncAgent(tmpDir);
+  assert.deepStrictEqual(checkMdStaleness(tmpDir), [], 'a successful sync must re-stamp the marker so staleness clears');
+}
+
+async function testCheckGateContentDriftFiresAndStaysSilent() {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-test-kit-drift-'));
+  copyExampleAgentInto(tmpDir);
+
+  const hash = computeContentHash(tmpDir);
+  const status = {
+    gate1: { approved: true, approvedContentHash: hash },
+    gate2: { approved: true, approvedContentHash: hash }
+  };
+  assert.deepStrictEqual(checkGateContentDrift(tmpDir, status), [], 'no drift immediately after stamping the approval hash');
+
+  const original = fs.readFileSync(path.join(tmpDir, 'test-cases.json'), 'utf8');
+  fs.writeFileSync(path.join(tmpDir, 'test-cases.json'), original.replace('EX-001', 'EX-001-CHANGED'), 'utf8');
+  assert.deepStrictEqual(checkGateContentDrift(tmpDir, status), ['gate1', 'gate2'], 'both approved gates must be flagged once content changes post-approval');
+
+  assert.deepStrictEqual(
+    checkGateContentDrift(tmpDir, { gate1: { approved: true }, gate2: { approved: true } }),
+    [],
+    'a gate approved with no recorded approvedContentHash must never be flagged (informational only)'
+  );
+
+  assert.deepStrictEqual(
+    checkGateContentDrift(path.join(tmpDir, 'does-not-exist'), { gate1: { approved: true, approvedContentHash: hash } }),
+    [],
+    'missing test-cases.json/rubrics.js (ENOENT) must be swallowed silently, never thrown'
+  );
+}
+
+// Regression test for the bug this review found: checkMdStaleness used to
+// compare the .review.md's embedded source-hash marker against the on-disk
+// JSON, which never changes when a reviewer edits the .review.md body
+// directly (the actual Gate 1 workflow) — so real unsynced edits went
+// undetected. It's since been rewritten to fully parse the current
+// .review.md and structurally compare it against the on-disk JSON/JS.
+async function testCheckMdStalenessDetectsHandEditedReviewMdBody() {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-test-kit-stale-body-'));
+  copyExampleAgentInto(tmpDir);
+
+  const { testCasesMd, rubricsMd } = renderAgent(tmpDir);
+  fs.writeFileSync(path.join(tmpDir, 'test-cases.review.md'), testCasesMd, 'utf8');
+  fs.writeFileSync(path.join(tmpDir, 'rubrics.review.md'), rubricsMd, 'utf8');
+  assert.deepStrictEqual(checkMdStaleness(tmpDir), [], 'freshly rendered MD must not be stale');
+
+  // Edit the .review.md BODY only — test-cases.json is untouched, so the old
+  // marker-hash-vs-JSON-hash check would (incorrectly) still report clean.
+  const editedMd = testCasesMd.replace(
+    'wordCount in the parsed response equals the actual word count of the note.',
+    'wordCount in the parsed response equals the actual word count of the note. EDITED BY REVIEWER, NOT YET SYNCED.'
+  );
+  assert.notStrictEqual(editedMd, testCasesMd, 'the edit must actually change the MD body');
+  fs.writeFileSync(path.join(tmpDir, 'test-cases.review.md'), editedMd, 'utf8');
+
+  assert.deepStrictEqual(
+    checkMdStaleness(tmpDir),
+    ['test-cases.review.md'],
+    'an unsynced edit to the .review.md BODY (JSON left untouched) must now be detected as stale'
+  );
+}
+
+async function testPreflightThrowingDoesNotCrashRun() {
+  const fakeSink = {
+    describe() { return 'Throwing Sink'; },
+    async preflight() { throw new Error('ECONNREFUSED'); },
+    async write() {}
+  };
+  const config = {
+    agentsDir: EXAMPLES_DIR,
+    createJudgeClient: () => stubJudgeClient,
+    createResultsSink: () => fakeSink,
+    createTraceResolver: () => createIdentityTraceResolver()
+  };
+
+  const { warns } = await captureConsole(() => runCmd(config, 'example-agent', { all: true }));
+  assert.ok(
+    warns.some((w) => w.includes('Throwing Sink') && w.includes('ECONNREFUSED')),
+    'a preflight() that throws (instead of resolving to {ok:false}) must still be reported, not crash the run: ' + JSON.stringify(warns)
+  );
+  assert.strictEqual(process.exitCode, 0, 'a throwing preflight() must never stop or fail the run');
+  process.exitCode = undefined;
+}
+
+async function testPersistenceSummarySilentForPlainSink() {
+  const plainSink = { async write() {} }; // no describe(), no getStats() — like consoleSink
+  const config = {
+    agentsDir: EXAMPLES_DIR,
+    createJudgeClient: () => stubJudgeClient,
+    createResultsSink: () => plainSink,
+    createTraceResolver: () => createIdentityTraceResolver()
+  };
+
+  const { logs } = await captureConsole(() => runCmd(config, 'example-agent', { all: true }));
+  assert.ok(
+    !logs.some((l) => l.includes('results sink')),
+    'a sink with neither describe() nor getStats() must not get a fabricated persistence-summary line: ' + JSON.stringify(logs)
+  );
+  process.exitCode = undefined;
+}
+
+async function testSyncRejectsScriptDiffRubricMissingHandler() {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-test-kit-md-noscriptcheck-'));
+  copyExampleAgentInto(tmpDir);
+  // example-agent's rubrics.js already declares WC1 as script_diff with a
+  // matching scriptChecks.js handler — delete the handler file entirely so
+  // sync must now catch the same gap validateAgent() already catches.
+  fs.unlinkSync(path.join(tmpDir, 'scriptChecks.js'));
+
+  const { testCasesMd, rubricsMd } = renderAgent(tmpDir);
+  let threw = false;
+  try {
+    syncAgent(tmpDir, { testCasesMd, rubricsMd });
+  } catch (e) {
+    threw = true;
+    assert.ok(/scriptChecks\.js/.test(e.message) && /missing/.test(e.message), 'error must name the missing scriptChecks.js file: ' + e.message);
+  }
+  assert.ok(threw, 'sync must refuse to write when a script_diff rubric has no matching scriptChecks.js handler');
+}
+
+async function testSyncRejectsUnrecognizedExecutionMode() {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-test-kit-md-badmode-'));
+  copyExampleAgentInto(tmpDir);
+  const { testCasesMd } = renderAgent(tmpDir);
+  const rubricsMd = renderAgent(tmpDir).rubricsMd;
+  const mangled = testCasesMd.replace('- **Execution Mode:** single-turn', '- **Execution Mode:** Single-Turn');
+  assert.notStrictEqual(mangled, testCasesMd, 'the mangling replace must actually match something');
+
+  let threw = false;
+  try {
+    syncAgent(tmpDir, { testCasesMd: mangled, rubricsMd });
+  } catch (e) {
+    threw = true;
+    assert.ok(/unrecognized "Execution Mode"/.test(e.message), 'error must clearly name the bad executionMode value: ' + e.message);
+  }
+  assert.ok(threw, 'sync must reject an unrecognized Execution Mode value rather than silently misparsing the section');
+}
+
 async function main() {
   const tests = [
     testValidateAgentAcceptsTheExampleAgent,
@@ -146,7 +481,19 @@ async function main() {
     testMarkdownSinkWritesTableAndSummary,
     testMultiSinkFansOutToEverySink,
     testTraceResolverReceivesAgentNameAlongsideClientTraceId,
-    testGateEnforcementLogic
+    testGateEnforcementLogic,
+    testPreflightFailureIsReportedButRunContinues,
+    testGetStatsReflectedInPersistenceSummary,
+    testMdRoundTripForExampleAgent,
+    testMdRoundTripForComplexFixture,
+    testSyncRejectsMangledMarkdownAndWritesNothing,
+    testCheckMdStalenessDetectsDriftAndClearsAfterSync,
+    testCheckGateContentDriftFiresAndStaysSilent,
+    testCheckMdStalenessDetectsHandEditedReviewMdBody,
+    testPreflightThrowingDoesNotCrashRun,
+    testPersistenceSummarySilentForPlainSink,
+    testSyncRejectsScriptDiffRubricMissingHandler,
+    testSyncRejectsUnrecognizedExecutionMode
   ];
   for (const t of tests) {
     process.stdout.write(t.name + '... ');

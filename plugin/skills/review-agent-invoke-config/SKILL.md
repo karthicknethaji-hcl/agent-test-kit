@@ -51,7 +51,14 @@ approve past it.
 Write findings into `review-status.json`'s `gate2.notes`. Ask the reviewer
 explicitly: "Gate 2 findings above — do you approve `invoke-config.js`
 (and `scriptChecks.js`) as-is, or do you want changes first?" Only set
-`gate2.approved: true` (and fill in `reviewer`/`date`) after they say yes.
+`gate2.approved: true` (and fill in `reviewer`/`date`) after they say yes —
+and when you do, also stamp `gate2.approvedContentHash` with the current
+`test-cases.json` + `rubrics.js` combined-content hash, so a later hand-edit
+or `sync` can be detected as drift against this approval:
+
+```
+node -e "console.log(require('agent-test-kit').reviewStatus.computeContentHash('<agentsDir>/<agent>'))"
+```
 
 Once both gates are approved, `agent-test-kit run <agent>` will accept the
 suite.

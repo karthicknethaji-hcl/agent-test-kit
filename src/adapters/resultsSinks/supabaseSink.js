@@ -30,6 +30,9 @@ function createSupabaseSink(options) {
   const { createClient } = require('@supabase/supabase-js');
   const client = createClient(opts.supabaseUrl, opts.supabaseServiceRoleKey);
 
+  let attempted = 0;
+  let failed = 0;
+
   function toRow(row) {
     return {
       test_id: row.testId,
@@ -48,12 +51,32 @@ function createSupabaseSink(options) {
 
   return {
     describe() { return "Supabase table '" + TABLE + "'"; },
+    // Cheap up-front reachability probe — see docs/CONTRACT.md "resultsSink
+    // lifecycle". Never throws (a network/DNS/TLS failure rejects the
+    // client call rather than resolving to { error }, so the reject path
+    // needs its own guard, not just the resolved-with-error one); a caller
+    // (runCmd.js) decides how to surface { ok: false, reason } without
+    // failing the run over it.
+    async preflight() {
+      try {
+        const { error } = await client.from(TABLE).select('id').limit(1);
+        if (error) return { ok: false, reason: error.message };
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, reason: e.message };
+      }
+    },
     async write(row) {
+      attempted++;
       const { error } = await client.from(TABLE).insert(toRow(row));
       if (error) {
+        failed++;
         console.warn('[supabaseSink] Failed to write ' + row.testId + ' to ' + TABLE + ': ' + error.message);
       }
-    }
+    },
+    // So a run can report real persisted/failed counts instead of silently
+    // reporting "done" while rows never actually landed.
+    getStats() { return { attempted, failed }; }
   };
 }
 

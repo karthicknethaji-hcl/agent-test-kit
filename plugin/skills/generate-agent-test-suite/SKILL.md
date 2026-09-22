@@ -25,7 +25,13 @@ against the schema as you go (`agent-test-kit validate`), which is what lets
 - Derive the agent's folder name from what the caller named it (kebab-case).
   If a folder already exists at `<agentsDir>/<name>/` with `test-cases.json`
   already populated, stop and ask before overwriting — this could be a
-  second onboarding pass, not a fresh one.
+  second onboarding pass, not a fresh one. Before drafting over an existing
+  folder, run `npx agent-test-kit check-md-staleness <name>` and relay its
+  output to the caller — if it warns that `test-cases.review.md`/
+  `rubrics.review.md` hold edits never synced to JSON, tell them plainly that
+  regenerating now will overwrite `test-cases.json`/`rubrics.js` and those MD
+  edits will be lost unless they run `npx agent-test-kit sync <name>` first,
+  then proceed if they still want to (informational only, never blocking).
 - Locate the agent's real source: ask the caller which file(s)/module
   actually implement the agent if it isn't obvious from the repo.
 
@@ -78,15 +84,19 @@ actually verified in the code.
    `agent-test-kit add-agent <name>` to scaffold this, or write it by hand
    matching `docs/CONTRACT.md`).
 
-## 4. Validate and smoke-test the draft
+## 4. Validate, smoke-test, and render for review
 
 ```
 npx agent-test-kit validate <name>
 npx agent-test-kit smoke <name>
+npx agent-test-kit render <name>
 ```
 
-Fix issues and re-run until both pass. Report the smoke test's actual output
-(the response it got back) — don't just report "passed."
+Fix issues and re-run until validate/smoke both pass. Report the smoke
+test's actual output (the response it got back) — don't just report
+"passed." `render` writes `test-cases.review.md`/`rubrics.review.md` from
+the JSON/JS you just drafted — that's what the Gate 1 reviewer actually
+edits (see `review-agent-test-cases`), not the raw JSON/JS.
 
 ## 5. Hand off
 

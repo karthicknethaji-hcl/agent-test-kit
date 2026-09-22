@@ -5,7 +5,9 @@
 | Stage | Mechanism | LLM-in-the-loop? |
 |---|---|---|
 | 1. Generate | Claude Code skill (`plugin/skills/generate-agent-test-suite`) | Yes — reading arbitrary agent source and drafting realistic test cases/rubrics/invocation config is a reasoning task, not a deterministic transform. |
-| 2. Gate 1 review | Claude Code skill (`plugin/skills/review-agent-test-cases`) | Yes — citation-vs-source verification and product-judgment triage. |
+| 1.5 Render | `agent-test-kit render <agent>` (deterministic CLI) | No — `test-cases.json`/`rubrics.js` → `test-cases.review.md`/`rubrics.review.md`. |
+| 2. Gate 1 review | Claude Code skill (`plugin/skills/review-agent-test-cases`), editing the `.review.md` files | Yes — citation-vs-source verification and product-judgment triage. |
+| 2.5 Sync | `agent-test-kit sync <agent>` (deterministic CLI) | No — parses the edited `.review.md` files back into JSON/JS, validates via `ajv`, refuses to write on any error. |
 | 3. Gate 2 review | Claude Code skill (`plugin/skills/review-agent-invoke-config`) | Mixed — claim verification is judgment-based; it also actually executes `scriptChecks.js` against mock pass/fail inputs, which is mechanical once the mocks exist. |
 | 4. Run | `agent-test-kit run <agent>` (deterministic CLI) | No — pure execution. Refuses to run unless schema-valid and both gates are approved. |
 
@@ -16,6 +18,17 @@ the two gates before running. Authoring `test-cases.json`/`rubrics.js`
 directly (schema-validated from the start, via `agent-test-kit validate`)
 removes the transcription step entirely; gate enforcement moved into `run`
 itself (`src/core/reviewStatus.js`).
+
+The render/sync stages (1.5/2.5) bring a *different* kind of `.md` draft
+back for Gate 1 specifically: `test-cases.json`/`rubrics.js` stay what
+`validate`/`run` actually execute against (ajv-validated, never relaxed),
+but a reviewer edits generated Markdown instead of raw JSON/JS — a
+round-trip format (`src/core/mdAuthoring/render.js`/`sync.js`), not
+hand-authored from scratch, so it's still exactly as strict as directly
+editing the JSON. See `docs/SPEC-sink-reliability-and-md-authoring.md`
+"Feature 2" and `docs/CONTRACT.md` for the full field mapping, the
+staleness-marker mechanism, and `review-status.json`'s `approvedContentHash`
+(detects a hand-edit to the JSON, or a `sync`, after a gate was approved).
 
 ## Pluggable seams
 
@@ -60,6 +73,13 @@ being reusable. `multiSink` combines more than one of these in a single
 run, e.g. a Markdown report for humans and a
 database write for cross-run querying, at the same time — see
 `docs/CONTRACT.md` "Built-in `resultsSink` adapters".
+
+A sink whose writes can fail silently (`supabaseSink`) can also implement
+`preflight()`/`getStats()`, so a bad connection or a never-run migration is
+never mistaken for success just because the Markdown output still landed —
+`agent-test-kit run` probes once up front and prints real persisted/failed
+counts at the end, but never fails the run over a persistence problem (see
+`docs/SPEC-sink-reliability-and-md-authoring.md` "Feature 1").
 
 ### `credentialResolver` — how auth/session values get resolved
 
