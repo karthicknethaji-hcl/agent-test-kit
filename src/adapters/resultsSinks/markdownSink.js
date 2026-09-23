@@ -24,6 +24,19 @@ function escapeCell(value) {
   return String(value).replace(/\|/g, '\\|').replace(/\r?\n/g, '<br>');
 }
 
+// notes is a free-form object whose shape varies by evaluator (unsupportedClaims,
+// rawOutput, reasoning, restatedItems, etc.) — render it as compact JSON so none
+// of that detail is silently dropped from the report.
+function formatNotes(notes) {
+  if (notes === null || notes === undefined) return '';
+  if (typeof notes === 'string') return notes;
+  try {
+    return JSON.stringify(notes);
+  } catch (err) {
+    return String(notes);
+  }
+}
+
 // Filesystem-safe (no ':') and still lexicographically sortable in
 // chronological order, e.g. 2026-09-22T14-05-33-123Z. The trailing random
 // suffix keeps two sinks constructed within the same millisecond (e.g. two
@@ -56,16 +69,17 @@ function createMarkdownSink(options) {
         headerWrittenForThisProcess = true;
         chunk +=
           '\n## Run ' + row.runId + ' — ' + row.agentName + ' — ' + row.timestamp + '\n\n' +
-          '| Test ID | Category | Metric | Pass | Score | Evaluator | Recommendation |\n' +
-          '|---|---|---|---|---|---|---|\n';
+          '| Test ID | Category | Metric | Score | Pass | Evaluator | Notes | Recommendation |\n' +
+          '|---|---|---|---|---|---|---------------------------------------|---------------------------------------|\n';
       }
       chunk +=
         '| ' + escapeCell(row.testId) +
         ' | ' + escapeCell(row.category) +
         ' | ' + escapeCell(row.metric) +
-        ' | ' + (row.pass ? '✅' : '❌') +
         ' | ' + escapeCell(row.score) +
+        ' | ' + (row.pass ? '✅' : '❌') +
         ' | ' + escapeCell(row.evaluator) +
+        ' | ' + escapeCell(formatNotes(row.notes)) +
         ' | ' + escapeCell(row.recommendation) +
         ' |\n';
       fs.appendFileSync(filePath, chunk, 'utf8');

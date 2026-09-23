@@ -99,7 +99,7 @@ async function testMarkdownSinkWritesTableAndSummary() {
   assert.strictEqual(totalFail, 0);
 
   const content = fs.readFileSync(filePath, 'utf8');
-  assert.ok(content.includes('| Test ID | Category | Metric | Pass | Score | Evaluator | Recommendation |'), 'must contain the results table header');
+  assert.ok(content.includes('| Test ID | Category | Metric | Score | Pass | Evaluator | Notes | Recommendation |'), 'must contain the results table header');
   assert.ok(content.includes('EX-001'), 'must contain the first test case row');
   assert.ok(content.includes('EX-002'), 'must contain the second test case row');
   assert.ok(/\*\*Summary:\*\* 2\/2 passed/.test(content), 'finalize() must append a summary line: ' + content);
