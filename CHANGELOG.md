@@ -6,6 +6,16 @@ this changelog specifically, separate from `package.json`'s npm semver
 version (which follows normal semver rules and is bumped independently when
 the package is actually published).
 
+## [0.08] - 2026-09-23
+
+### Changed
+
+- `markdownSink` now includes a `Notes` column in the results table
+  (JSON-serialized `row.notes`, previously silently dropped) and reorders
+  the header to `Test ID | Category | Metric | Score | Pass | Evaluator |
+  Notes | Recommendation`, with the `Notes`/`Recommendation` columns
+  widened to fit their larger content.
+
 ## [0.07] - 2026-09-22
 
 ### Changed
