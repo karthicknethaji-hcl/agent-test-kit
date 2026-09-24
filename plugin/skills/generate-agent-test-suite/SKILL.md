@@ -1,6 +1,6 @@
 ---
 name: generate-agent-test-suite
-description: Draft a new agent's agent-test-kit test suite (test-cases.json, rubrics.js, invoke-config.js, README.md, review-status.json, and scriptChecks.js if needed) directly from its real source code, then validate and smoke-test the draft. Use when the user asks to "onboard <agent> to agent-test-kit", "generate/draft test cases for <agent>", or similar.
+description: Draft a new agent's agent-test-kit test suite (test-cases.json, rubrics.js, invoke-config.js, README.md, review-status.json, and scriptChecks.js if needed) from its real source code, or — when source isn't available — from a requirements/spec document or inline description. Then validate and smoke-test the draft. Use when the user asks to "onboard <agent> to agent-test-kit", "generate/draft test cases for <agent>", or similar.
 ---
 
 # Generate agent test suite
@@ -11,6 +11,14 @@ knowledge of what such an agent "usually" does. There is no separate
 deterministic script for this step: inferring realistic test cases, rubrics,
 and an accurate `invoke-config.js` from arbitrary source is a reasoning task,
 not a mechanical transform.
+
+**When no source code is available**, draft instead from a requirements
+input (see "Requirements-only mode" under step 1/3 below) — inline text the
+caller typed, or a requirements/spec file (Markdown, plain text, PDF, or
+Word) at any path they give, including one attached directly in the chat.
+This still produces a real, runnable suite; it's just derived from stated
+intent rather than verified implementation, and every output says so
+plainly (see step 3).
 
 Unlike the original 5-stage version of this pipeline, there is **no `.md`
 draft step** — you author `test-cases.json`/`rubrics.js` directly, validated
@@ -34,6 +42,26 @@ against the schema as you go (`agent-test-kit validate`), which is what lets
   then proceed if they still want to (informational only, never blocking).
 - Locate the agent's real source: ask the caller which file(s)/module
   actually implement the agent if it isn't obvious from the repo.
+- **Requirements-only mode**: if the caller says source code isn't available
+  (or gives requirements alongside source — see below), identify what they
+  gave you:
+  - **Inline text** — requirements typed straight into the prompt (e.g.
+    "Onboard X, whose requirement is to..."). Treat that message as the
+    source of truth; restate/organize it into a "Requirements" section you
+    write into the drafted `README.md` verbatim enough to be checkable later
+    (don't paraphrase away specifics).
+  - **A file at a path, or attached in chat** — Markdown, plain text, PDF, or
+    Word. Read/extract its content. There's no fixed folder convention —
+    whatever path the caller gives is fine. Copy the requirements content (or
+    a faithful excerpt covering what you drafted from) into the agent's own
+    `<agentsDir>/<name>/` folder as part of onboarding, same as any other
+    agent doc, so the suite's justification travels with it.
+  - **Both source and requirements together** — read both. Use the
+    requirements doc to check whether the source actually implements
+    everything it describes, and flag in the hand-off (step 5) anything the
+    doc requires that the code doesn't do, and anything the code does that
+    the doc never mentions. This is a manual read-and-compare, not an
+    automated diff — there's no tooling for that yet.
 
 ## 2. Read the reference contract and reference agent
 
@@ -47,11 +75,15 @@ Before drafting anything, read:
   their `rubrics.js` files, to avoid reusing a rubric code with a different
   meaning (see the collision check in `review-agent-test-cases`).
 
-## 3. Draft, reading the real source
+## 3. Draft, reading the real source (or the requirements input)
 
-For each output below, cite the exact file/function/line in the agent's own
-source that justifies each claim. Do not describe behavior you haven't
-actually verified in the code.
+For each output below, cite what justifies each claim: the exact
+file/function/line in the agent's own source when you have it, or — in
+requirements-only mode — the doc's section/heading (e.g. "Requirements
+§4.2"), or "per stated requirement" for inline text. Do not describe
+behavior you haven't actually verified against whichever input you were
+given, and never blur the two — a citation must make clear whether it's
+code-verified or doc-derived.
 
 1. `test-cases.json` — one entry per test case, matching
    `src/core/schema/testCase.schema.json`. Cover the agent's real behaviors:
@@ -79,7 +111,13 @@ actually verified in the code.
    do nothing if you forget it — `agent-test-kit validate` will catch a
    missing handler, but only if you actually run it (step 4).
 5. `README.md` — what this agent is, what `invoke-config.js`'s
-   approximation/fidelity looks like, any known limitations.
+   approximation/fidelity looks like, any known limitations. In
+   requirements-only mode, add an explicit **"Doc-derived, not
+   code-verified"** callout: state that this suite was drafted from stated
+   requirements rather than source code, name the input (doc path/title, or
+   "inline requirements from the onboarding conversation"), and note that any
+   rubric which can't truly be checked without seeing real output/code
+   should be re-verified once source exists.
 6. `review-status.json` — both gates `approved: false` (use
    `agent-test-kit add-agent <name>` to scaffold this, or write it by hand
    matching `docs/CONTRACT.md`).
@@ -113,7 +151,9 @@ just a prose sentence saying the draft is "ready":
   (`review-agent-test-cases`), plus `test-suite/agents/<name>/invoke-config.js`
   (and `scriptChecks.js` if present) for Gate 2 (`review-agent-invoke-config`).
 - **Anything that needs a decision before review** (e.g. couldn't call the
-  real code path and used an approximation instead) — flagged plainly, not
-  buried in prose.
+  real code path and used an approximation instead, drafted in
+  requirements-only mode, or — when both source and requirements were given —
+  any mismatch found between what the doc requires and what the code
+  actually does) — flagged plainly, not buried in prose.
 
 This skill never approves its own output.

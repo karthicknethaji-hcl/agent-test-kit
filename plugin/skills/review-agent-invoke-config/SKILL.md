@@ -31,6 +31,16 @@ against the cited source — quote the real line. Flag anything that's
 actually a hand-approximation being presented as calling the real thing, or
 vice versa.
 
+**If this suite was drafted in requirements-only mode** (no real source
+existed at draft time — check `README.md` for the "Doc-derived, not
+code-verified" callout), `invoke-config.js` is necessarily a best-effort
+approximation built from the requirements doc/inline text, not something
+callable against real code. Verify its claims against the requirements input
+instead, and record as a Gate 2 finding that this file's fidelity is
+unverified against an actual implementation — approval here should be
+understood as "reasonable approximation of stated requirements," not "matches
+real behavior," until source exists and this gate is re-run against it.
+
 Also confirm:
 - `agentName`, `createConversationState()`, `sendMessage()` are present and
   match the contract in `docs/CONTRACT.md`.

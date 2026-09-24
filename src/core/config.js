@@ -41,9 +41,11 @@ function loadConfig(startDir) {
     // config's own directory rather than whatever process.cwd() happens to
     // be, without this file needing to know that naming scheme itself.
     // `agentName` is passed through from the CLI command (run/smoke) so the
-    // default filename identifies which agent a report belongs to; a custom
-    // `createResultsSink` override may ignore the argument if it doesn't need it.
-    createResultsSink: userConfig.createResultsSink || ((agentName) => createMarkdownSink({ dir: root, agentName })),
+    // default filename identifies which agent a report belongs to; `options`
+    // (e.g. `{ includeNotes }`) is passed through from `run --notes` — a
+    // custom `createResultsSink` override may ignore either argument if it
+    // doesn't need them.
+    createResultsSink: userConfig.createResultsSink || ((agentName, options) => createMarkdownSink({ dir: root, agentName, includeNotes: options && options.includeNotes })),
     createCredentialResolver: userConfig.createCredentialResolver || (() => createEnvCredentialResolver()),
     createTraceResolver: userConfig.createTraceResolver || (() => createIdentityTraceResolver())
   };

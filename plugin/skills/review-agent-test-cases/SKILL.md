@@ -28,6 +28,16 @@ factual claim about the agent's own prompt/logic ("the system prompt says
 X", "the code enforces Y"), verify it against the actual source — quote the
 real line. Flag any claim you can't verify, or that the source contradicts.
 
+**If this suite was drafted in requirements-only mode** (check the drafted
+`README.md` for the "Doc-derived, not code-verified" callout — see
+`generate-agent-test-suite`), there is no source to verify citations
+against. Instead: verify each claim against the requirements doc/inline text
+itself (does the citation actually say what the test case claims it says?),
+and separately flag — as a Gate 1 finding, not silently — that this entire
+suite is unverified against real code and should be re-reviewed once source
+exists. Don't treat a doc-derived citation as equivalent to a code-verified
+one when reporting findings.
+
 ## 3. Rubric-code collision check
 
 Read every other onboarded agent's `rubrics.js`. If this agent reuses a code

@@ -99,10 +99,29 @@ async function testMarkdownSinkWritesTableAndSummary() {
   assert.strictEqual(totalFail, 0);
 
   const content = fs.readFileSync(filePath, 'utf8');
-  assert.ok(content.includes('| Test ID | Category | Metric | Score | Pass | Evaluator | Notes | Recommendation |'), 'must contain the results table header');
+  // Notes column is off by default (pass includeNotes: true to opt in).
+  assert.ok(content.includes('| Test ID | Category | Metric | Score | Pass | Evaluator | Recommendation |'), 'must contain the results table header without Notes');
   assert.ok(content.includes('EX-001'), 'must contain the first test case row');
   assert.ok(content.includes('EX-002'), 'must contain the second test case row');
   assert.ok(/\*\*Summary:\*\* 2\/2 passed/.test(content), 'finalize() must append a summary line: ' + content);
+}
+
+async function testMarkdownSinkIncludesNotesColumnWhenOptedIn() {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-test-kit-md-notes-'));
+  const filePath = path.join(tmpDir, 'results.md');
+  const { testCasesModule, rubricsConfig, invoke, scriptChecks } = loadAgent(EXAMPLE_AGENT_DIR);
+
+  const { totalFail } = await runSuite({
+    invoke, testCasesModule, rubricsConfig, scriptChecks,
+    callJudgeModel: stubJudgeClient,
+    resultsSink: createMarkdownSink({ filePath, includeNotes: true }),
+    traceResolver: createIdentityTraceResolver(),
+    all: true
+  });
+  assert.strictEqual(totalFail, 0);
+
+  const content = fs.readFileSync(filePath, 'utf8');
+  assert.ok(content.includes('| Test ID | Category | Metric | Score | Pass | Evaluator | Notes | Recommendation |'), 'must contain the results table header with Notes');
 }
 
 async function testMarkdownSinkDefaultsToAFreshTimestampedFilePerRun() {
@@ -512,6 +531,7 @@ async function main() {
     testValidateAgentRejectsMalformedTestCases,
     testRunSuitePassesBothExampleRubrics,
     testMarkdownSinkWritesTableAndSummary,
+    testMarkdownSinkIncludesNotesColumnWhenOptedIn,
     testMarkdownSinkDefaultsToAFreshTimestampedFilePerRun,
     testMultiSinkFansOutToEverySink,
     testTraceResolverReceivesAgentNameAlongsideClientTraceId,

@@ -12,7 +12,7 @@ const { syncCmd } = require('../src/cli/commands/syncCmd');
 const { checkMdStalenessCmd } = require('../src/cli/commands/checkMdStalenessCmd');
 
 function parseFlags(argv) {
-  const flags = { only: null, all: false, force: false, skipGateCheck: false };
+  const flags = { only: null, all: false, force: false, skipGateCheck: false, notes: false };
   const positional = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -20,6 +20,7 @@ function parseFlags(argv) {
     else if (a === '--all') flags.all = true;
     else if (a === '--force') flags.force = true;
     else if (a === '--skip-gate-check') flags.skipGateCheck = true;
+    else if (a === '--notes') flags.notes = true;
     else positional.push(a);
   }
   return { flags, positional };
@@ -34,8 +35,9 @@ Usage:
   agent-test-kit validate <name>             Schema-validate an agent's files (no execution)
   agent-test-kit status [name]               Show schema/gate-approval status for one or all agents
   agent-test-kit smoke <name>                Call the agent once, confirm a real response comes back
-  agent-test-kit run <name> [--only a,b] [--all] [--skip-gate-check]
+  agent-test-kit run <name> [--only a,b] [--all] [--skip-gate-check] [--notes]
                                               Run the agent's approved test suite
+                                              (--notes includes the evaluator Notes column in the report; off by default)
   agent-test-kit render <name>               Write test-cases.review.md + rubrics.review.md from JSON
   agent-test-kit sync <name>                 Parse the .review.md files back into JSON, validate, write
   agent-test-kit check-md-staleness <name>   Warn if .review.md holds edits never synced to JSON (read-only)

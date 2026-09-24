@@ -71,7 +71,7 @@ function printPersistenceSummary(resultsSink) {
 }
 
 async function runCmd(config, agentName, opts) {
-  if (!agentName) throw new Error('Usage: agent-test-kit run <agent-name> [--only id1,id2] [--all] [--skip-gate-check]');
+  if (!agentName) throw new Error('Usage: agent-test-kit run <agent-name> [--only id1,id2] [--all] [--skip-gate-check] [--notes]');
   const agentDir = path.join(config.agentsDir, agentName);
 
   const { valid, errors } = validateAgent(agentDir);
@@ -97,7 +97,7 @@ async function runCmd(config, agentName, opts) {
 
   const { testCasesModule, rubricsConfig, invoke, scriptChecks } = loadAgent(agentDir);
   const callJudgeModel = config.createJudgeClient();
-  const resultsSink = config.createResultsSink(agentName);
+  const resultsSink = config.createResultsSink(agentName, { includeNotes: !!opts.notes });
   const traceResolver = config.createTraceResolver();
 
   await runPreflight(resultsSink);

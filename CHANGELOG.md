@@ -6,6 +6,29 @@ this changelog specifically, separate from `package.json`'s npm semver
 version (which follows normal semver rules and is bumped independently when
 the package is actually published).
 
+## [0.09] - 2026-09-24
+
+### Added
+
+- `agent-test-kit run` now takes a `--notes` flag (off by default) to include
+  the evaluator `Notes` column in the Markdown report; without it, the
+  report omits that column entirely instead of always including it.
+- `generate-agent-test-suite` now supports a requirements-only mode for
+  agents without available source code: inline requirements typed in the
+  onboarding prompt, or a requirements/spec file (Markdown, plain text, PDF,
+  or Word) at any path or attached in chat. Drafted suites are cited against
+  the requirements input instead of source, and the generated `README.md`
+  carries an explicit "Doc-derived, not code-verified" callout.
+  `review-agent-test-cases` and `review-agent-invoke-config` were updated to
+  review doc-derived citations accordingly. When both source and
+  requirements are given, the generator flags mismatches between what the
+  doc requires and what the code implements (manual, not automated).
+
+### Changed
+
+- `createResultsSink` config hook now receives a second `options` argument
+  (`{ includeNotes }`); custom overrides may ignore it.
+
 ## [0.08] - 2026-09-23
 
 ### Changed

@@ -54,6 +54,9 @@ function defaultFilePath(dir, agentName) {
 function createMarkdownSink(options) {
   const opts = options || {};
   const filePath = opts.filePath || defaultFilePath(opts.dir || process.cwd(), opts.agentName);
+  // Off by default — most runs don't need the raw evaluator Notes column in
+  // the report; pass `includeNotes: true` (wired to `run --notes`) to keep it.
+  const includeNotes = !!opts.includeNotes;
 
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
 
@@ -67,10 +70,13 @@ function createMarkdownSink(options) {
       let chunk = '';
       if (!headerWrittenForThisProcess) {
         headerWrittenForThisProcess = true;
-        chunk +=
-          '\n## Run ' + row.runId + ' — ' + row.agentName + ' — ' + row.timestamp + '\n\n' +
-          '| Test ID | Category | Metric | Score | Pass | Evaluator | Notes | Recommendation |\n' +
-          '|---|---|---|---|---|---|---------------------------------------|---------------------------------------|\n';
+        chunk += includeNotes
+          ? '\n## Run ' + row.runId + ' — ' + row.agentName + ' — ' + row.timestamp + '\n\n' +
+            '| Test ID | Category | Metric | Score | Pass | Evaluator | Notes | Recommendation |\n' +
+            '|---|---|---|---|---|---|---------------------------------------|---------------------------------------|\n'
+          : '\n## Run ' + row.runId + ' — ' + row.agentName + ' — ' + row.timestamp + '\n\n' +
+            '| Test ID | Category | Metric | Score | Pass | Evaluator | Recommendation |\n' +
+            '|---|---|---|---|---|---|---------------------------------------|\n';
       }
       chunk +=
         '| ' + escapeCell(row.testId) +
@@ -79,7 +85,7 @@ function createMarkdownSink(options) {
         ' | ' + escapeCell(row.score) +
         ' | ' + (row.pass ? '✅' : '❌') +
         ' | ' + escapeCell(row.evaluator) +
-        ' | ' + escapeCell(formatNotes(row.notes)) +
+        (includeNotes ? ' | ' + escapeCell(formatNotes(row.notes)) : '') +
         ' | ' + escapeCell(row.recommendation) +
         ' |\n';
       fs.appendFileSync(filePath, chunk, 'utf8');
