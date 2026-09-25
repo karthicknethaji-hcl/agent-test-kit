@@ -97,6 +97,42 @@ async function testRunSuitePassesBothExampleRubrics() {
   assert.strictEqual(totalFail, 0, 'both example rubrics (script_diff + llm_judge) should pass: ' + JSON.stringify(results.map((r) => r.outcome)));
 }
 
+// Regression test for a real bug found via live testing (a real agent call
+// throwing an auth error): runSuite's catch block logged the error and
+// counted it in the pass/fail summary, but never called persist(), so a
+// test case whose invocation THROWS (as opposed to returning a failing
+// outcome) silently never reached ANY resultsSink — Markdown, JSON file, or
+// mcpSink/DB alike — despite being counted as a failure in the printed
+// summary and totalFail.
+async function testErroredTestCaseIsStillPersistedNotSilentlyDropped() {
+  const writes = [];
+  const stubSink = { async write(row) { writes.push(row); } };
+  const throwingInvoke = {
+    agentName: 'example-agent',
+    createConversationState: () => ({}),
+    async sendMessage() { throw new Error('auth_error: Not authenticated.'); }
+  };
+  const testCasesModule = {
+    agentName: 'example-agent',
+    schemaVersion: '1.0',
+    testCases: [{ testId: 'ERR-1', category: 'errors', v1Scope: true, executionMode: 'single-turn', rubric: 'X', probe: 'hi' }]
+  };
+
+  const { totalFail } = await runSuite({
+    invoke: throwingInvoke, testCasesModule, rubricsConfig: {}, scriptChecks: {},
+    callJudgeModel: stubJudgeClient,
+    resultsSink: stubSink,
+    traceResolver: createIdentityTraceResolver()
+  });
+
+  assert.strictEqual(totalFail, 1, 'the thrown invocation must still count as a failure in the summary');
+  assert.strictEqual(writes.length, 1, 'a test case whose invocation throws must still be persisted, not silently dropped: ' + JSON.stringify(writes));
+  assert.strictEqual(writes[0].testId, 'ERR-1');
+  assert.strictEqual(writes[0].pass, false);
+  assert.strictEqual(writes[0].evaluator, 'error');
+  assert.ok(/auth_error/.test(writes[0].notes.error), 'the persisted row must carry the actual error message: ' + JSON.stringify(writes[0]));
+}
+
 async function testMarkdownSinkWritesTableAndSummary() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-test-kit-md-'));
   const filePath = path.join(tmpDir, 'results.md');
@@ -656,6 +692,7 @@ async function main() {
     testValidateAgentAcceptsTheExampleAgent,
     testValidateAgentRejectsMalformedTestCases,
     testRunSuitePassesBothExampleRubrics,
+    testErroredTestCaseIsStillPersistedNotSilentlyDropped,
     testMarkdownSinkWritesTableAndSummary,
     testMarkdownSinkIncludesNotesColumnWhenOptedIn,
     testMarkdownSinkDefaultsToAFreshTimestampedFilePerRun,

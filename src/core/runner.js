@@ -128,7 +128,14 @@ async function runSuite(options) {
       log('[' + testCase.testId + '] ' + (outcome.pass ? 'PASS' : 'FAIL'));
     } catch (err) {
       log('[' + testCase.testId + '] ERROR — ' + err.message);
-      results.push({ testCase, outcome: { pass: false, score: null, evaluator: 'error', notes: { error: err.message } } });
+      const outcome = { pass: false, score: null, evaluator: 'error', notes: { error: err.message }, recommendation: null };
+      results.push({ testCase, outcome });
+      // A thrown invocation (e.g. an auth error) never reached persist()
+      // above, so without this an errored case would silently vanish from
+      // every resultsSink (Markdown, JSON file, MCP/DB alike) despite still
+      // being counted in the printed pass/fail summary — no clientTraceId
+      // exists to resolve since invoke never returned one.
+      await persist(invoke.agentName, testCase, outcome, null);
     }
   }
 
@@ -141,7 +148,9 @@ async function runSuite(options) {
       log('[' + scanCase.testId + '] ' + (outcome.pass ? 'PASS' : 'FAIL'));
     } catch (err) {
       log('[' + scanCase.testId + '] ERROR — ' + err.message);
-      results.push({ testCase: scanCase, outcome: { pass: false, score: null, evaluator: 'error', notes: { error: err.message } } });
+      const outcome = { pass: false, score: null, evaluator: 'error', notes: { error: err.message }, recommendation: null };
+      results.push({ testCase: scanCase, outcome });
+      await persist(invoke.agentName, scanCase, outcome, null);
     }
   }
 

@@ -7,19 +7,21 @@
 // quickly — a real process execution, not just a check that the file exists
 // on disk (see the plan's "Review disposition" for why the CI check needed
 // to be this concrete).
-const { execFileSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
 const MCP_SERVERS_DIR = path.join(__dirname, '..', 'mcp-servers');
 const REQUIRED_FILES = ['package.json', 'README.md'];
 
-const NPM_COMMAND = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-
 function packFileList(pkgDir) {
-  // shell:true is required on Windows to resolve npm.cmd; safe here since
-  // every argument is a static literal, never external/user input.
-  const output = execFileSync(NPM_COMMAND, ['pack', '--dry-run', '--json'], { cwd: pkgDir, encoding: 'utf8', shell: process.platform === 'win32' });
+  // execSync always runs through a shell (cmd.exe on Windows, resolving
+  // npm.cmd via PATHEXT itself; /bin/sh elsewhere), so this needs no
+  // platform-specific command name or execFileSync's shell:true — which
+  // Node deprecates (DEP0190) when combined with an args array, since the
+  // array's arguments aren't escaped by the shell. Safe here regardless:
+  // the whole command is a static literal, never external/user input.
+  const output = execSync('npm pack --dry-run --json', { cwd: pkgDir, encoding: 'utf8' });
   const [result] = JSON.parse(output);
   return result.files.map((f) => f.path);
 }
