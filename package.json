@@ -1,6 +1,6 @@
 {
   "name": "@karthicknethaji-hcl/agent-test-kit",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Agent-agnostic AI agent test execution framework: generate, review, and run rubric-scored test suites against any AI agent in any codebase.",
   "license": "MIT",
   "private": false,
@@ -27,7 +27,7 @@
     "access": "public"
   },
   "scripts": {
-    "test": "node test/run-example-agent.test.js && node test/mcp-sink.test.js && node test/results-cmd.test.js && node test/migrate-layout.test.js",
+    "test": "node test/run-example-agent.test.js && node test/mcp-sink.test.js && node test/results-cmd.test.js && node test/migrate-layout.test.js && node test/cli-version.test.js",
     "verify:mcp-servers": "node scripts/verify-mcp-servers.js"
   },
   "dependencies": {

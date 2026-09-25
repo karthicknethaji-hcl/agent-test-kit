@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 const path = require('path');
+const { version } = require('../package.json');
 const { loadConfig } = require('../src/core/config');
 const { init } = require('../src/cli/commands/init');
 const { addAgent } = require('../src/cli/commands/addAgent');
@@ -61,6 +62,7 @@ function printUsage() {
   console.log(`agent-test-kit — agent-agnostic AI agent test execution framework
 
 Usage:
+  agent-test-kit --version | -v              Print the installed version
   agent-test-kit init                        Scaffold agent-test-kit.config.js + test-suite/agents/
   agent-test-kit add-agent <name>            Scaffold a new agent folder from templates
   agent-test-kit validate <name>             Schema-validate an agent's files (no execution)
@@ -90,6 +92,11 @@ async function main() {
 
   if (!command || command === 'help' || command === '--help') {
     printUsage();
+    return;
+  }
+
+  if (command === '--version' || command === '-v' || command === 'version') {
+    console.log(version);
     return;
   }
 
