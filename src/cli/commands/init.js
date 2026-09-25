@@ -18,24 +18,28 @@ module.exports = {
   // createJudgeClient: () => adapters.createAnthropicJudgeClient(),
 
   // createResultsSink(agentName) => { write(row), finalize(runSummary)? }
-  // Default: a fresh, timestamped Markdown report per run, under
-  // .agent-test-kit-results/ (e.g. run-my-agent-2026-09-22T14-05-33-123Z.md)
-  // — never overwritten or silently appended to by a later run. Pass an
-  // explicit filePath to opt back into one single file every run appends to
-  // instead:
+  // Default: a fresh, timestamped Markdown report per run, under this
+  // agent's own test-suite/agents/<name>/results/ folder (e.g.
+  // run-2026-09-22T14-05-33-123Z.md) — never overwritten or silently
+  // appended to by a later run. Pass an explicit filePath to opt back into
+  // one single file every run appends to instead:
   // createResultsSink: () => adapters.createMarkdownSink({ filePath: '...' }),
   //
   // Other sinks ship in the box too — jsonFileSink (machine-readable NDJSON),
-  // supabaseSink (writes to this package's OWN fixed table,
-  // agent_test_kit_quality_scores — run sql/agent-test-kit-quality-scores-
-  // migration.sql yourself once first; see docs/ARCHITECTURE.md for why the
-  // schema is fixed rather than configurable), and multiSink to combine
-  // more than one at once, e.g.:
+  // mcpSink (persists via ANY local MCP server implementing the contract in
+  // docs/CONTRACT.md "MCP results-sink server contract" — no specific
+  // database is built into this package; see mcp-servers/ in this package's
+  // own repo for reference servers, e.g. a Supabase-backed one), and
+  // multiSink to combine more than one at once, e.g.:
   //   createResultsSink: () => adapters.createMultiSink([
   //     adapters.createMarkdownSink(),
-  //     adapters.createSupabaseSink({
-  //       supabaseUrl: process.env.SUPABASE_URL,
-  //       supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY
+  //     adapters.createMcpSink({
+  //       command: 'npx',
+  //       args: ['-y', '@karthicknethaji-hcl/agent-test-kit-supabase-mcp-server@0.1.0'],
+  //       env: {
+  //         SUPABASE_URL: process.env.SUPABASE_URL,
+  //         SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY
+  //       }
   //     })
   //   ]),
 
@@ -61,6 +65,18 @@ function init(cwd, options) {
   const agentsDir = path.join(cwd, 'test-suite', 'agents');
   fs.mkdirSync(agentsDir, { recursive: true });
   console.log('Ensured ' + agentsDir + ' exists.');
+
+  // Every agent's own results/ folder (see docs/CONTRACT.md "Per-agent
+  // folder layout") holds generated run output — without an ignore rule
+  // here, a consuming repo would git-track every timestamped report by
+  // default the moment `agent-test-kit run` writes one.
+  const gitignorePath = path.join(cwd, '.gitignore');
+  const ignoreLine = 'test-suite/agents/*/results/';
+  const existing = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, 'utf8') : '';
+  if (!existing.split(/\r?\n/).includes(ignoreLine)) {
+    fs.writeFileSync(gitignorePath, existing + (existing && !existing.endsWith('\n') ? '\n' : '') + ignoreLine + '\n', 'utf8');
+    console.log('Added "' + ignoreLine + '" to ' + gitignorePath + '.');
+  }
   console.log('\nNext: npx agent-test-kit add-agent <name>');
 }
 

@@ -5,11 +5,11 @@
 // agent's test-cases.json/rubrics.js is validated against a fixed JSON
 // Schema before it's allowed to run.
 const fs = require('fs');
-const path = require('path');
 const Ajv = require('ajv');
 
 const testCaseSchema = require('./schema/testCase.schema.json');
 const rubricSchema = require('./schema/rubric.schema.json');
+const { getAgentPaths } = require('./agentPaths');
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 const validateTestCases = ajv.compile(testCaseSchema);
@@ -56,7 +56,7 @@ function validateContent(testCasesModule, rubricsConfig, agentDir) {
 
   const hasScriptDiff = rubricsConfig && Object.values(rubricsConfig).some((r) => r && r.evaluatorType === 'script_diff');
   if (hasScriptDiff) {
-    const scriptChecksPath = path.join(agentDir, 'scriptChecks.js');
+    const scriptChecksPath = getAgentPaths(agentDir).config.scriptChecks;
     if (!fs.existsSync(scriptChecksPath)) {
       errors.push('rubrics.js declares at least one script_diff rubric but scriptChecks.js is missing at ' + scriptChecksPath);
     } else {
@@ -80,19 +80,20 @@ function validateContent(testCasesModule, rubricsConfig, agentDir) {
  * functions (see docs/CONTRACT.md).
  */
 function validateAgent(agentDir) {
+  const paths = getAgentPaths(agentDir);
   let testCasesModule, rubricsConfig, invoke;
   try {
-    testCasesModule = requireFresh(path.join(agentDir, 'test-cases.json'));
+    testCasesModule = requireFresh(paths.config.testCases);
   } catch (e) {
     return { valid: false, errors: ['test-cases.json: ' + e.message] };
   }
   try {
-    rubricsConfig = requireFresh(path.join(agentDir, 'rubrics.js'));
+    rubricsConfig = requireFresh(paths.config.rubrics);
   } catch (e) {
     return { valid: false, errors: ['rubrics.js: ' + e.message] };
   }
   try {
-    invoke = requireFresh(path.join(agentDir, 'invoke-config.js'));
+    invoke = requireFresh(paths.config.invokeConfig);
   } catch (e) {
     return { valid: false, errors: ['invoke-config.js: ' + e.message] };
   }

@@ -156,10 +156,31 @@ async function runSuite(options) {
 
   // Optional lifecycle hook — called once, after every row for this run has
   // already gone through resultsSink.write(). A sink that only needs
-  // per-row writes (jsonFileSink, supabaseSink) simply won't define this;
-  // one that needs to render a whole-run summary (markdownSink) does.
-  if (resultsSink && typeof resultsSink.finalize === 'function') {
-    await resultsSink.finalize({ runId, agentName: invoke.agentName, totalRun: results.length, totalFail, byCategory });
+  // per-row writes (jsonFileSink, mcpSink without a run-summary tool) simply
+  // won't define this; one that needs to render a whole-run summary
+  // (markdownSink) does.
+  //
+  // Both finalize() and the optional close() (process/transport teardown —
+  // see mcpSink.js) are wrapped in their own try/catch: a persistence-hook
+  // failure must never fail an otherwise-complete run, and a close() failure
+  // must never escape the finally block and mask that finalize() already
+  // completed (or already warned) — each is isolated independently.
+  if (resultsSink) {
+    try {
+      if (typeof resultsSink.finalize === 'function') {
+        await resultsSink.finalize({ runId, agentName: invoke.agentName, totalRun: results.length, totalFail, byCategory });
+      }
+    } catch (err) {
+      console.warn('[runner] resultsSink.finalize failed: ' + err.message);
+    } finally {
+      if (typeof resultsSink.close === 'function') {
+        try {
+          await resultsSink.close();
+        } catch (err) {
+          console.warn('[runner] resultsSink.close failed: ' + err.message);
+        }
+      }
+    }
   }
 
   return { runId, results, totalFail, byCategory };

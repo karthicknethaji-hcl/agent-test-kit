@@ -10,17 +10,48 @@ const { runCmd } = require('../src/cli/commands/runCmd');
 const { renderCmd } = require('../src/cli/commands/renderCmd');
 const { syncCmd } = require('../src/cli/commands/syncCmd');
 const { checkMdStalenessCmd } = require('../src/cli/commands/checkMdStalenessCmd');
+const { resultsCmd } = require('../src/cli/commands/resultsCmd');
+const { migrateLayoutCmd } = require('../src/cli/commands/migrateLayoutCmd');
 
 function parseFlags(argv) {
-  const flags = { only: null, all: false, force: false, skipGateCheck: false, notes: false };
+  const flags = { only: null, all: false, force: false, skipGateCheck: false, notes: false, dryRun: false };
   const positional = [];
-  for (let i = 0; i < argv.length; i++) {
+
+  // Consumes and returns the value following a flag, validating it exists
+  // and isn't itself another recognized `--flag` — without this, a value
+  // accidentally omitted before another flag (e.g. `--from --to 2026-01-01`)
+  // would silently swallow that flag's NAME as this one's value instead of
+  // failing loudly.
+  function takeValue(flagName) {
+    const value = argv[++i];
+    if (value === undefined || value.startsWith('--')) {
+      throw new Error('agent-test-kit: ' + flagName + ' requires a value.');
+    }
+    return value;
+  }
+
+  let i;
+  for (i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--only') flags.only = argv[++i].split(',').map((s) => s.trim());
+    if (a === '--only') flags.only = takeValue('--only').split(',').map((s) => s.trim());
     else if (a === '--all') flags.all = true;
     else if (a === '--force') flags.force = true;
     else if (a === '--skip-gate-check') flags.skipGateCheck = true;
     else if (a === '--notes') flags.notes = true;
+    else if (a === '--dry-run') flags.dryRun = true;
+    else if (a === '--pass') {
+      const value = takeValue('--pass');
+      if (value !== 'true' && value !== 'false') throw new Error('agent-test-kit: --pass must be "true" or "false", got "' + value + '".');
+      flags.pass = value === 'true';
+    }
+    else if (a === '--from') flags.from = takeValue('--from');
+    else if (a === '--to') flags.to = takeValue('--to');
+    else if (a === '--test-id') flags.testId = takeValue('--test-id');
+    else if (a === '--evaluator') flags.evaluator = takeValue('--evaluator');
+    else if (a === '--run-id') flags.runId = takeValue('--run-id');
+    else if (a === '--limit') flags.limit = Number(takeValue('--limit'));
+    else if (a === '--cursor') flags.cursor = takeValue('--cursor');
+    else if (a === '--sink') flags.sink = Number(takeValue('--sink'));
     else positional.push(a);
   }
   return { flags, positional };
@@ -41,6 +72,13 @@ Usage:
   agent-test-kit render <name>               Write test-cases.review.md + rubrics.review.md from JSON
   agent-test-kit sync <name>                 Parse the .review.md files back into JSON, validate, write
   agent-test-kit check-md-staleness <name>   Warn if .review.md holds edits never synced to JSON (read-only)
+  agent-test-kit results <name> [--pass true|false] [--from date] [--to date]
+                                              [--test-id id] [--evaluator name] [--run-id id]
+                                              [--limit n] [--cursor token] [--sink n]
+                                              Query persisted results (requires an mcpSink whose
+                                              server implements query_results)
+  agent-test-kit migrate-layout [--dry-run]  One-time upgrade of every agent folder from the old flat
+                                              layout to config/review/results (see docs/ARCHITECTURE.md)
 
 See docs/GETTING-STARTED.md.`);
 }
@@ -107,6 +145,18 @@ async function main() {
   if (command === 'check-md-staleness') {
     const config = loadConfig(cwd);
     checkMdStalenessCmd(config.agentsDir, positional[0]);
+    return;
+  }
+
+  if (command === 'results') {
+    const config = loadConfig(cwd);
+    await resultsCmd(config, positional[0], flags);
+    return;
+  }
+
+  if (command === 'migrate-layout') {
+    const config = loadConfig(cwd);
+    await migrateLayoutCmd(config, flags);
     return;
   }
 

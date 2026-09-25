@@ -6,6 +6,64 @@ this changelog specifically, separate from `package.json`'s npm semver
 version (which follows normal semver rules and is bumped independently when
 the package is actually published).
 
+## [0.10] - 2026-09-25
+
+### Breaking
+
+- Removed `createSupabaseSink` (`src/adapters/resultsSinks/supabaseSink.js`)
+  and the `@supabase/supabase-js` optional dependency. Replaced by a generic
+  `createMcpSink({command, args, env})` that persists via **any** local MCP
+  server implementing the contract in `docs/CONTRACT.md` "MCP results-sink
+  server contract" — this package no longer has any built-in knowledge of a
+  specific database. Only `store_result` is required of a server;
+  `preflight`/`finalize`/`query_results` are optional and feature-detected.
+  **Migration:** replace
+  ```js
+  adapters.createSupabaseSink({ supabaseUrl, supabaseServiceRoleKey })
+  ```
+  with
+  ```js
+  adapters.createMcpSink({
+    command: 'npx',
+    args: ['-y', '@karthicknethaji-hcl/agent-test-kit-supabase-mcp-server@0.1.0'],
+    env: { SUPABASE_URL: process.env.SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY }
+  })
+  ```
+  No schema/table changes needed — the reference server writes to the same
+  `agent_test_kit_quality_scores` table with the same columns. The migration
+  SQL file moved from `sql/` to
+  `mcp-servers/supabase-mcp-server/sql/agent-test-kit-quality-scores-migration.sql`.
+- Restructured every per-agent folder from a flat file list into
+  `config/`/`review/`/`results/` subfolders (see `docs/CONTRACT.md`
+  "Per-agent folder layout") — an agent's own run output now lives in its own
+  `results/` folder instead of a shared top-level `.agent-test-kit-results/`
+  directory. **Migration:** run `npx agent-test-kit migrate-layout --dry-run`
+  to preview, then `npx agent-test-kit migrate-layout` to apply — it builds a
+  verified backup before moving anything, never deletes unrecognized files,
+  and is safe to re-run if interrupted.
+
+### Added
+
+- New `agent-test-kit results <agent>` command — retrieves persisted rows
+  (filter by `--test-id`, `--pass`, `--evaluator`, `--run-id`, `--from`/`--to`,
+  paginated via `--limit`/`--cursor`) from a configured `mcpSink` whose server
+  implements the optional `query_results` tool.
+- Two reference MCP servers, published as independent packages under
+  `mcp-servers/`: `@karthicknethaji-hcl/agent-test-kit-supabase-mcp-server`
+  and `@karthicknethaji-hcl/agent-test-kit-example-json-file-mcp-server` (the
+  latter is a minimal, credential-free reference — copy it as a starting
+  point for any other backend).
+- `createMarkdownSink`/`createJsonFileSink` gained a `resultsDir` option (an
+  exact output directory, no `.agent-test-kit-results/` subfolder appended) —
+  non-breaking; the existing `dir` option keeps its old behavior. Passing
+  both `dir` and `resultsDir` together is a configuration error.
+- `resultsSink` gained an optional `close()` lifecycle hook, distinct from
+  `finalize()` — `runner.js` now calls both in a `try/catch/finally` so a
+  `finalize` failure can never skip cleanup and a `close` failure can never
+  be confused with (or mask) a `finalize` failure.
+- `npm run verify:mcp-servers` — a CI check that each `mcp-servers/*` package
+  packs correctly (via `npm pack --dry-run`) and its bin entry actually runs.
+
 ## [0.09] - 2026-09-24
 
 ### Added

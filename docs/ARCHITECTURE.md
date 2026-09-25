@@ -60,26 +60,42 @@ that's the package's contract, not something each repo redefines. Default:
 external dependencies) — a repo that wants machine-readable output instead
 can use `jsonFileSink`.
 
-For a database, `supabaseSink` is deliberately **not** a bring-your-own-table
-adapter — it always writes to the same fixed table
-(`agent_test_kit_quality_scores`, schema in
-`sql/agent-test-kit-quality-scores-migration.sql`) with the same columns, in
-every repo that adopts this package. Only the connection (which Supabase
-project) is ever repo-specific; the schema itself isn't. This is on purpose:
-a fixed, universal schema is what makes it possible to build one dashboard
-or reporting tool against results from ANY repo using agent-test-kit,
-instead of every repo inventing its own table shape and that tooling never
-being reusable. `multiSink` combines more than one of these in a single
-run, e.g. a Markdown report for humans and a
-database write for cross-run querying, at the same time — see
+For shared/queryable persistence, `mcpSink` is deliberately **not** tied to
+any specific vendor: it's a generic client that spawns any local MCP server
+over stdio and speaks the small tool contract in `docs/CONTRACT.md` "MCP
+results-sink server contract" — this package has zero code that knows about
+Supabase, Postgres, or anything else. Every adopting repo picks (or writes)
+whichever server matches its own database, all implementing the identical
+`store_result`/`preflight`/`finalize`/`query_results` contract; only
+`store_result` is required. Two reference servers ship under `mcp-servers/`
+in this repo as independent, separately-published packages — a
+Supabase-backed one (for repos already on Supabase) and a minimal JSON-file
+example (the copy-paste starting point for anything else). This is on
+purpose: a fixed, universal *contract* — not a fixed schema owned by this
+package — is what makes it possible to persist results into whatever
+database a repo already has, while still allowing tooling (like
+`agent-test-kit results`) to query any of them the same way. `multiSink`
+combines more than one sink in a single run, e.g. a Markdown report for
+humans and an `mcpSink` write for cross-run querying, at the same time — see
 `docs/CONTRACT.md` "Built-in `resultsSink` adapters".
 
-A sink whose writes can fail silently (`supabaseSink`) can also implement
-`preflight()`/`getStats()`, so a bad connection or a never-run migration is
-never mistaken for success just because the Markdown output still landed —
-`agent-test-kit run` probes once up front and prints real persisted/failed
-counts at the end, but never fails the run over a persistence problem (see
-`docs/SPEC-sink-reliability-and-md-authoring.md` "Feature 1").
+A sink whose writes can fail silently (`mcpSink`) can also implement
+`preflight()`/`getStats()`, so an unreachable server is never mistaken for
+success just because the Markdown output still landed — `agent-test-kit run`
+probes once up front and prints real persisted/failed counts at the end, but
+never fails the run over a persistence problem (see
+`docs/SPEC-sink-reliability-and-md-authoring.md` "Feature 1"). `mcpSink`
+additionally exposes an optional `close()` — separate from `finalize()`, and
+never conflated with it — so tearing down its spawned child process can
+never be skipped by a `finalize` failure and can never itself mask that a
+`finalize` failure already happened (`runner.js` guards each independently).
+
+### Per-agent folder layout
+
+See `docs/CONTRACT.md` "Per-agent folder layout" for the current
+`config/`/`review/`/`results/` split and `src/core/agentPaths.js`, the single
+place every one of those paths is resolved from. A repo on the old flat
+layout upgrades with `agent-test-kit migrate-layout` (dry-run first).
 
 ### `credentialResolver` — how auth/session values get resolved
 

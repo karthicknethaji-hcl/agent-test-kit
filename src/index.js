@@ -14,7 +14,7 @@ module.exports = {
     createConsoleSink: require('./adapters/resultsSinks/consoleSink').createConsoleSink,
     createJsonFileSink: require('./adapters/resultsSinks/jsonFileSink').createJsonFileSink,
     createMarkdownSink: require('./adapters/resultsSinks/markdownSink').createMarkdownSink,
-    createSupabaseSink: require('./adapters/resultsSinks/supabaseSink').createSupabaseSink,
+    createMcpSink: require('./adapters/resultsSinks/mcpSink').createMcpSink,
     createMultiSink: require('./adapters/resultsSinks/multiSink').createMultiSink,
     createEnvCredentialResolver: require('./adapters/credentialResolvers/envCredentialResolver').createEnvCredentialResolver,
     createIdentityTraceResolver: require('./adapters/traceResolvers/identityTraceResolver').createIdentityTraceResolver

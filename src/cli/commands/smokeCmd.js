@@ -6,7 +6,7 @@ async function smokeCmd(config, agentName) {
   if (!agentName) throw new Error('Usage: agent-test-kit smoke <agent-name>');
   const agentDir = path.join(config.agentsDir, agentName);
   const { invoke } = loadAgent(agentDir);
-  const resultsSink = config.createResultsSink(agentName);
+  const resultsSink = config.createResultsSink(agentName, {});
 
   console.log('[smoke] calling ' + invoke.agentName + '...');
   const outcome = await smokeTest({ invoke, resultsSink });

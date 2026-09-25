@@ -3,8 +3,8 @@
 // round-trip format, not free-form Markdown: `sync.js` parses exactly what
 // this file produces, so every shape choice here is also a parsing contract.
 const fs = require('fs');
-const path = require('path');
 const { sha256 } = require('./hash');
+const { getAgentPaths } = require('../agentPaths');
 
 function jsonBlock(label, value) {
   return ['**' + label + ':**', '```json', JSON.stringify(value, null, 2), '```', ''];
@@ -111,8 +111,9 @@ function requireFresh(modulePath) {
 // rubrics.js straight off disk so the embedded source-hash always reflects
 // exactly what's on disk right now, not whatever a stale require() cached.
 function renderAgent(agentDir) {
-  const testCasesPath = path.join(agentDir, 'test-cases.json');
-  const rubricsPath = path.join(agentDir, 'rubrics.js');
+  const paths = getAgentPaths(agentDir);
+  const testCasesPath = paths.config.testCases;
+  const rubricsPath = paths.config.rubrics;
 
   const testCasesRaw = fs.readFileSync(testCasesPath, 'utf8');
   const testCasesModule = JSON.parse(testCasesRaw);

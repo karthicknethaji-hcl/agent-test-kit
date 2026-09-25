@@ -3,4 +3,6 @@ node_modules/
 .agent-test-kit-results.md
 .agent-test-kit-results.ndjson
 .agent-test-kit-judge-exchange/
+.agent-test-kit-migration-backup-*/
+test-suite/agents/*/results/
 *.log

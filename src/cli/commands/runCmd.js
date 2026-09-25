@@ -3,6 +3,7 @@ const { loadAgent } = require('../../core/loadAgent');
 const { validateAgent } = require('../../core/validate');
 const { loadReviewStatus, isFullyApproved, warnIfGateContentDrifted } = require('../../core/reviewStatus');
 const { runSuite } = require('../../core/runner');
+const { getAgentPaths } = require('../../core/agentPaths');
 
 function describeSink(sink) {
   return typeof sink.describe === 'function' ? sink.describe() : 'results sink';
@@ -88,7 +89,7 @@ async function runCmd(config, agentName, opts) {
     console.error('[run] Refusing to run "' + agentName + '" — both review gates must be approved first.');
     console.error('  gate 1 (product review)  : ' + (status.gate1.approved ? 'approved' : 'NOT approved'));
     console.error('  gate 2 (technical review) : ' + (status.gate2.approved ? 'approved' : 'NOT approved'));
-    console.error('Approve both in ' + path.join(agentDir, 'review-status.json') + ' (normally done via the review skills), or pass --skip-gate-check for local iteration.');
+    console.error('Approve both in ' + getAgentPaths(agentDir).review.reviewStatus + ' (normally done via the review skills), or pass --skip-gate-check for local iteration.');
     process.exitCode = 1;
     return;
   }

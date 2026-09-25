@@ -17,7 +17,6 @@
     "src",
     "examples",
     "docs/CONTRACT.md",
-    "sql",
     "LICENSE",
     "CHANGELOG.md"
   ],
@@ -28,12 +27,11 @@
     "access": "public"
   },
   "scripts": {
-    "test": "node test/run-example-agent.test.js"
+    "test": "node test/run-example-agent.test.js && node test/mcp-sink.test.js && node test/results-cmd.test.js && node test/migrate-layout.test.js",
+    "verify:mcp-servers": "node scripts/verify-mcp-servers.js"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.1",
     "ajv": "^8.17.1"
-  },
-  "optionalDependencies": {
-    "@supabase/supabase-js": "^2.45.0"
   }
 }

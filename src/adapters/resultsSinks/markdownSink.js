@@ -4,12 +4,20 @@
 // database, a JSON viewer, or this package's own tooling.
 //
 // Zero-config default: a fresh, timestamped file per run
-// (.agent-test-kit-results/run-<agentName>-<timestamp>.md, or just
-// run-<timestamp>.md if no agentName is given) — a run's results are never
-// silently appended to (and visually buried inside) a previous run's file,
-// and nothing gets overwritten by a later run either. Pass an explicit
-// `filePath` to opt back into a single fixed file that every run appends to
-// (the old default behavior).
+// (<agent's results/ folder>/run-<timestamp>.md, or
+// .agent-test-kit-results/run-<agentName>-<timestamp>.md when only a legacy
+// `dir` is given) — a run's results are never silently appended to (and
+// visually buried inside) a previous run's file, and nothing gets
+// overwritten by a later run either. Pass an explicit `filePath` to opt back
+// into a single fixed file that every run appends to (the old default
+// behavior).
+//
+// Three mutually exclusive ways to choose where output goes, in priority
+// order: `filePath` (an exact file) > `resultsDir` (use this directory
+// as-is, no subfolder appended) > `dir` (legacy: a parent directory under
+// which `.agent-test-kit-results/` is appended, preserved for any existing
+// caller). Passing both `dir` and `resultsDir` together is a configuration
+// error — resolving it silently would hide a real caller mistake.
 //
 // Uses the resultsSink.finalize(runSummary) lifecycle hook (see
 // docs/CONTRACT.md "resultsSink lifecycle") to render the summary line and
@@ -46,14 +54,23 @@ function timestampForFilename() {
   return new Date().toISOString().replace(/[:.]/g, '-') + '-' + crypto.randomBytes(3).toString('hex');
 }
 
-function defaultFilePath(dir, agentName) {
-  const name = 'run-' + (agentName ? agentName + '-' : '') + timestampForFilename() + '.md';
-  return path.join(dir, '.agent-test-kit-results', name);
+function defaultFileName(agentName) {
+  return 'run-' + (agentName ? agentName + '-' : '') + timestampForFilename() + '.md';
 }
 
 function createMarkdownSink(options) {
   const opts = options || {};
-  const filePath = opts.filePath || defaultFilePath(opts.dir || process.cwd(), opts.agentName);
+  if (opts.dir && opts.resultsDir) {
+    throw new Error('markdownSink: pass only one of "dir" or "resultsDir", not both.');
+  }
+  let filePath = opts.filePath;
+  if (!filePath) {
+    if (opts.resultsDir) {
+      filePath = path.join(opts.resultsDir, defaultFileName(opts.agentName));
+    } else {
+      filePath = path.join(opts.dir || process.cwd(), '.agent-test-kit-results', defaultFileName(opts.agentName));
+    }
+  }
   // Off by default — most runs don't need the raw evaluator Notes column in
   // the report; pass `includeNotes: true` (wired to `run --notes`) to keep it.
   const includeNotes = !!opts.includeNotes;

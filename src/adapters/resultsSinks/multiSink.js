@@ -33,13 +33,48 @@ function createMultiSink(sinks) {
       ));
       return probed.map((sink, i) => Object.assign({ describe: label(sink) }, results[i]));
     },
+    // Isolates each child's own rejection (warn + continue) rather than
+    // letting one misbehaving sink's throw abort the loop and silently skip
+    // every sink listed after it — the same isolation posture preflight()
+    // and close() already apply, for the same reason: every built-in sink
+    // already avoids throwing from write()/finalize(), but nothing enforces
+    // that for a third-party one.
     async write(row) {
-      for (const sink of sinks) await sink.write(row);
+      const outcomes = await Promise.allSettled(sinks.map((sink) => sink.write(row)));
+      outcomes.forEach((outcome, i) => {
+        if (outcome.status === 'rejected') {
+          console.warn('[multiSink] ' + label(sinks[i]) + ' write() failed for ' + row.testId + ': ' + outcome.reason.message);
+        }
+      });
     },
     async finalize(runSummary) {
-      for (const sink of sinks) {
-        if (typeof sink.finalize === 'function') await sink.finalize(runSummary);
-      }
+      const finalizable = sinks.filter((sink) => typeof sink.finalize === 'function');
+      const outcomes = await Promise.allSettled(finalizable.map((sink) => sink.finalize(runSummary)));
+      outcomes.forEach((outcome, i) => {
+        if (outcome.status === 'rejected') {
+          console.warn('[multiSink] ' + label(finalizable[i]) + ' finalize() failed: ' + outcome.reason.message);
+        }
+      });
+    },
+    // Best-effort, never throws — attempts EVERY child's close() even if an
+    // earlier one fails, so one misbehaving child (e.g. an mcpSink whose
+    // transport teardown errors) can never prevent its siblings from closing
+    // their own resources (a naive sequential loop with a bare `await` would
+    // abandon later children on the first rejection).
+    async close() {
+      const closable = sinks.filter((sink) => typeof sink.close === 'function');
+      const outcomes = await Promise.allSettled(closable.map((sink) => sink.close()));
+      outcomes.forEach((outcome, i) => {
+        if (outcome.status === 'rejected') {
+          console.warn('[multiSink] ' + label(closable[i]) + ' close() failed: ' + outcome.reason.message);
+        }
+      });
+    },
+    // One level only — a caller that needs to reach into a nested multiSink
+    // (a multiSink whose own children include another multiSink) recurses
+    // itself; see resultsCmd.js's resolveQuerySinks().
+    getChildren() {
+      return sinks.slice();
     },
     // One entry per child sink (so a caller can print one line per sink),
     // with stats: null for children that don't track attempted/failed

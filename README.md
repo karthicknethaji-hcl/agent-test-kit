@@ -36,6 +36,46 @@ check whether a `.review.md` holds edits that were never synced.
 Full walkthrough: `docs/GETTING-STARTED.md`. File/interface contracts:
 `docs/CONTRACT.md`. Why each pluggable seam exists: `docs/ARCHITECTURE.md`.
 
+## Querying persisted results
+
+`npx agent-test-kit results <agent>` retrieves previously persisted rows —
+the read counterpart to `run`'s write path. It only works when the
+configured `resultsSink` is (or contains) an `mcpSink` whose connected
+server implements the optional `query_results` tool (see `docs/CONTRACT.md`
+"MCP results-sink server contract"); `markdownSink`/`jsonFileSink`/
+`consoleSink` are write-only by design.
+
+```
+npx agent-test-kit results my-agent --pass false --from 2026-01-01 --limit 20
+```
+
+Filters: `--test-id`, `--agent-name` (implied by the `<agent>` argument),
+`--pass true|false`, `--evaluator`, `--run-id`, `--from`/`--to` (ISO 8601,
+inclusive), `--limit`, `--cursor` (pass back a printed `Next cursor:` value to
+page), and `--sink <n>` to disambiguate when more than one query-capable sink
+is configured.
+
+## Persisting results anywhere — no database is built in
+
+`agent-test-kit` has no built-in database or vendor. The default is a local
+Markdown report (zero dependencies, zero setup); for shared/queryable
+persistence, `createMcpSink` talks to **any** local MCP server that
+implements the small tool contract in `docs/CONTRACT.md` — `store_result` is
+the only required tool. Two reference servers live under `mcp-servers/` in
+this repo, published as independent packages:
+
+- `mcp-servers/supabase-mcp-server` — for repos already on Supabase.
+- `mcp-servers/example-json-file-mcp-server` — the simplest possible
+  reference (a single local JSON file), meant to be read and copied as the
+  starting point for any other backend (Postgres, MySQL, SQLite, Mongo, a
+  REST API — anything).
+
+Existing repos already on an agent-test-kit release with `createSupabaseSink`
+should see `CHANGELOG.md` for the migration path, and every repo upgrading
+past the per-agent folder restructure should run
+`npx agent-test-kit migrate-layout --dry-run` before `npx agent-test-kit
+migrate-layout` (see `docs/ARCHITECTURE.md` "Per-agent folder layout").
+
 ## Status
 
 **Public.** Published to the public npm registry — `npm install` works for
@@ -81,12 +121,15 @@ before relying on this if it's been a while since this was written.)
 
 ```
 bin/            CLI entry point
-src/core/       evaluator, runner, schema, config, validate — agent-agnostic
+src/core/       evaluator, runner, schema, config, validate, agentPaths — agent-agnostic
 src/adapters/   pluggable judgeClient / resultsSink / credentialResolver / traceResolver
+mcp-servers/    reference MCP persistence servers (Supabase, a minimal JSON-file example) —
+                independent packages, not dependencies of the core package
+scripts/        verify-mcp-servers.js (CI packaging check for mcp-servers/)
 examples/       bundled reference agent (no external dependencies)
 plugin/         Claude Code plugin: the 4 pipeline skills + marketplace.json
 docs/           CONTRACT.md, ARCHITECTURE.md, GETTING-STARTED.md
-test/           this package's own end-to-end test (npm test)
+test/           this package's own end-to-end tests (npm test)
 ```
 
 ## Development

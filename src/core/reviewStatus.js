@@ -8,9 +8,10 @@
 const fs = require('fs');
 const path = require('path');
 const { sha256 } = require('./mdAuthoring/hash');
+const { getAgentPaths } = require('./agentPaths');
 
 function reviewStatusPath(agentDir) {
-  return path.join(agentDir, 'review-status.json');
+  return getAgentPaths(agentDir).review.reviewStatus;
 }
 
 function defaultReviewStatus() {
@@ -27,7 +28,9 @@ function loadReviewStatus(agentDir) {
 }
 
 function saveReviewStatus(agentDir, status) {
-  fs.writeFileSync(reviewStatusPath(agentDir), JSON.stringify(status, null, 2) + '\n', 'utf8');
+  const p = reviewStatusPath(agentDir);
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, JSON.stringify(status, null, 2) + '\n', 'utf8');
 }
 
 function isFullyApproved(status) {
@@ -41,8 +44,9 @@ function isFullyApproved(status) {
 // either one invalidates what was actually reviewed with no risk of a
 // delimiter character colliding with real file content.
 function computeContentHash(agentDir) {
-  const testCasesRaw = fs.readFileSync(path.join(agentDir, 'test-cases.json'), 'utf8');
-  const rubricsRaw = fs.readFileSync(path.join(agentDir, 'rubrics.js'), 'utf8');
+  const paths = getAgentPaths(agentDir);
+  const testCasesRaw = fs.readFileSync(paths.config.testCases, 'utf8');
+  const rubricsRaw = fs.readFileSync(paths.config.rubrics, 'utf8');
   return sha256(sha256(testCasesRaw) + sha256(rubricsRaw));
 }
 

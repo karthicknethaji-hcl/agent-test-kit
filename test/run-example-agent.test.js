@@ -9,6 +9,7 @@ const path = require('path');
 const { validateAgent } = require('../src/core/validate');
 const { runSuite } = require('../src/core/runner');
 const { loadAgent } = require('../src/core/loadAgent');
+const { getAgentPaths } = require('../src/core/agentPaths');
 const { isFullyApproved, defaultReviewStatus, computeContentHash, checkGateContentDrift } = require('../src/core/reviewStatus');
 const { createConsoleSink } = require('../src/adapters/resultsSinks/consoleSink');
 const { createMarkdownSink } = require('../src/adapters/resultsSinks/markdownSink');
@@ -37,10 +38,20 @@ async function captureConsole(fn) {
   return { logs, warns };
 }
 
-function copyExampleAgentInto(tmpDir) {
-  for (const f of fs.readdirSync(EXAMPLE_AGENT_DIR)) {
-    fs.copyFileSync(path.join(EXAMPLE_AGENT_DIR, f), path.join(tmpDir, f));
+// Recursive — the fixture is now the nested config/review/README.md layout
+// (see docs/ARCHITECTURE.md "Per-agent folder layout"), not a flat file list.
+function copyDirRecursive(srcDir, destDir) {
+  fs.mkdirSync(destDir, { recursive: true });
+  for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+    const srcPath = path.join(srcDir, entry.name);
+    const destPath = path.join(destDir, entry.name);
+    if (entry.isDirectory()) copyDirRecursive(srcPath, destPath);
+    else fs.copyFileSync(srcPath, destPath);
   }
+}
+
+function copyExampleAgentInto(tmpDir) {
+  copyDirRecursive(EXAMPLE_AGENT_DIR, tmpDir);
 }
 
 async function stubJudgeClient(promptText) {
@@ -57,12 +68,14 @@ async function testValidateAgentAcceptsTheExampleAgent() {
 
 async function testValidateAgentRejectsMalformedTestCases() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-test-kit-'));
+  const paths = getAgentPaths(tmpDir);
+  fs.mkdirSync(paths.config.dir, { recursive: true });
   for (const f of ['rubrics.js', 'invoke-config.js', 'scriptChecks.js']) {
-    fs.copyFileSync(path.join(EXAMPLE_AGENT_DIR, f), path.join(tmpDir, f));
+    fs.copyFileSync(path.join(EXAMPLE_AGENT_DIR, 'config', f), path.join(paths.config.dir, f));
   }
   // Deliberately malformed: missing required "rubric" field, invalid executionMode.
   fs.writeFileSync(
-    path.join(tmpDir, 'test-cases.json'),
+    paths.config.testCases,
     JSON.stringify({ agentName: 'broken', schemaVersion: '1.0', testCases: [{ testId: 'X-1', category: 'x', v1Scope: true, executionMode: 'not-a-real-mode' }] })
   );
   const { valid, errors } = validateAgent(tmpDir);
@@ -128,8 +141,9 @@ async function testMarkdownSinkDefaultsToAFreshTimestampedFilePerRun() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-test-kit-md-default-'));
 
   // No filePath given (the zero-config case, matching what config.js's
-  // default createResultsSink() does): each sink instance must land in its
-  // own file under a results directory, not a single fixed path.
+  // default createResultsSink() does for a legacy `dir`): each sink instance
+  // must land in its own file under a results directory, not a single fixed
+  // path.
   const sinkA = createMarkdownSink({ dir: tmpDir });
   const sinkB = createMarkdownSink({ dir: tmpDir });
   assert.notStrictEqual(sinkA.filePath, sinkB.filePath, 'two separate runs must never write to the same default file path');
@@ -157,6 +171,20 @@ async function testMarkdownSinkDefaultsToAFreshTimestampedFilePerRun() {
   assert.strictEqual(sinkC.filePath, sinkD.filePath, 'an explicit filePath must be honored exactly, not timestamped');
 }
 
+async function testMarkdownSinkResultsDirIsUsedAsIsWithNoSubfolderAppend() {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-test-kit-md-resultsdir-'));
+  const resultsDir = path.join(tmpDir, 'test-suite', 'agents', 'my-agent', 'results');
+
+  const sink = createMarkdownSink({ resultsDir });
+  assert.strictEqual(path.dirname(sink.filePath), resultsDir, 'resultsDir must be used as-is, with no .agent-test-kit-results/ appended');
+
+  assert.throws(
+    () => createMarkdownSink({ dir: tmpDir, resultsDir }),
+    /pass only one of "dir" or "resultsDir"/,
+    'passing both dir and resultsDir together must be a configuration error, not a silent precedence choice'
+  );
+}
+
 async function testMultiSinkFansOutToEverySink() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-test-kit-multi-'));
   const mdPath = path.join(tmpDir, 'results.md');
@@ -177,6 +205,46 @@ async function testMultiSinkFansOutToEverySink() {
 
   assert.ok(fs.existsSync(mdPath), 'the markdown child sink must still have written its file');
   assert.deepStrictEqual(written, ['EX-001', 'EX-002', 'finalize:2'], 'both write() calls and the finalize() call must reach the spy sink: ' + JSON.stringify(written));
+}
+
+async function testMultiSinkCloseIsBestEffortAcrossChildren() {
+  const closed = [];
+  const goodSinkA = { async write() {}, async close() { closed.push('A'); } };
+  const throwingSink = { async write() {}, async close() { closed.push('throwing'); throw new Error('boom'); } };
+  const goodSinkB = { async write() {}, async close() { closed.push('B'); } };
+
+  const { warns } = await captureConsole(async () => {
+    await createMultiSink([goodSinkA, throwingSink, goodSinkB]).close();
+  });
+
+  assert.deepStrictEqual(closed.sort(), ['A', 'B', 'throwing'], 'every child\'s close() must be attempted even though one throws: ' + JSON.stringify(closed));
+  assert.ok(warns.some((w) => w.includes('boom')), 'the failing child\'s error must be warned about, not swallowed silently');
+}
+
+// Regression test for a real bug found by code review: write()/finalize()
+// were bare sequential loops with no per-child isolation, unlike this same
+// file's preflight()/close() — one throwing child aborted the loop and
+// silently skipped every sink listed after it.
+async function testMultiSinkWriteAndFinalizeIsolateAThrowingChild() {
+  const written = [];
+  const finalized = [];
+  const goodSinkA = { async write(row) { written.push('A:' + row.testId); }, async finalize() { finalized.push('A'); } };
+  const throwingSink = {
+    async write() { throw new Error('write boom'); },
+    async finalize() { throw new Error('finalize boom'); }
+  };
+  const goodSinkB = { async write(row) { written.push('B:' + row.testId); }, async finalize() { finalized.push('B'); } };
+  const multi = createMultiSink([goodSinkA, throwingSink, goodSinkB]);
+
+  const { warns } = await captureConsole(async () => {
+    await multi.write({ testId: 'X-1' });
+    await multi.finalize({ totalRun: 1 });
+  });
+
+  assert.deepStrictEqual(written.sort(), ['A:X-1', 'B:X-1'], 'sinks after the throwing one must still receive write(): ' + JSON.stringify(written));
+  assert.deepStrictEqual(finalized.sort(), ['A', 'B'], 'sinks after the throwing one must still receive finalize(): ' + JSON.stringify(finalized));
+  assert.ok(warns.some((w) => w.includes('write boom')), 'the write() failure must be warned about: ' + JSON.stringify(warns));
+  assert.ok(warns.some((w) => w.includes('finalize boom')), 'the finalize() failure must be warned about: ' + JSON.stringify(warns));
 }
 
 async function testTraceResolverReceivesAgentNameAlongsideClientTraceId() {
@@ -200,6 +268,54 @@ async function testTraceResolverReceivesAgentNameAlongsideClientTraceId() {
   for (const row of written) {
     assert.ok(row.traceId.startsWith('resolved-'), 'the row must use whatever the resolver actually returned');
   }
+}
+
+async function testRunnerClosesResultsSinkEvenWhenFinalizeThrows() {
+  let closed = false;
+  const fakeSink = {
+    async write() {},
+    async finalize() { throw new Error('finalize exploded'); },
+    async close() { closed = true; }
+  };
+  const { testCasesModule, rubricsConfig, invoke, scriptChecks } = loadAgent(EXAMPLE_AGENT_DIR);
+
+  const { warns } = await captureConsole(() => runSuite({
+    invoke, testCasesModule, rubricsConfig, scriptChecks,
+    callJudgeModel: stubJudgeClient,
+    resultsSink: fakeSink,
+    traceResolver: createIdentityTraceResolver(),
+    all: true
+  }));
+
+  assert.ok(closed, 'close() must still run even though finalize() threw — a finalize failure must never skip cleanup');
+  assert.ok(warns.some((w) => w.includes('finalize exploded')), 'the finalize failure must be warned about, not silently swallowed');
+}
+
+async function testRunnerSurvivesACloseThatAlsoThrows() {
+  const fakeSink = {
+    async write() {},
+    async finalize() { throw new Error('finalize exploded'); },
+    async close() { throw new Error('close exploded too'); }
+  };
+  const { testCasesModule, rubricsConfig, invoke, scriptChecks } = loadAgent(EXAMPLE_AGENT_DIR);
+
+  let threw = false;
+  const { warns } = await captureConsole(async () => {
+    try {
+      await runSuite({
+        invoke, testCasesModule, rubricsConfig, scriptChecks,
+        callJudgeModel: stubJudgeClient,
+        resultsSink: fakeSink,
+        traceResolver: createIdentityTraceResolver(),
+        all: true
+      });
+    } catch (e) {
+      threw = true;
+    }
+  });
+
+  assert.strictEqual(threw, false, 'a close() that ALSO throws must not escape runSuite() and mask that finalize already completed/warned');
+  assert.ok(warns.some((w) => w.includes('close exploded too')), 'the close() failure must be warned about independently');
 }
 
 async function testGateEnforcementLogic() {
@@ -271,8 +387,9 @@ async function testGetStatsReflectedInPersistenceSummary() {
 async function testMdRoundTripForExampleAgent() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-test-kit-md-'));
   copyExampleAgentInto(tmpDir);
-  const originalTestCases = JSON.parse(fs.readFileSync(path.join(tmpDir, 'test-cases.json'), 'utf8'));
-  const originalRubrics = require(path.join(tmpDir, 'rubrics.js'));
+  const paths = getAgentPaths(tmpDir);
+  const originalTestCases = JSON.parse(fs.readFileSync(paths.config.testCases, 'utf8'));
+  const originalRubrics = require(paths.config.rubrics);
 
   const { testCasesMd, rubricsMd } = renderAgent(tmpDir);
   const { testCasesModule, rubricsConfig } = syncAgent(tmpDir, { testCasesMd, rubricsMd });
@@ -335,12 +452,14 @@ async function testMdRoundTripForComplexFixture() {
   };
 
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-test-kit-md-complex-'));
-  fs.writeFileSync(path.join(tmpDir, 'test-cases.json'), JSON.stringify(testCasesModule, null, 2) + '\n', 'utf8');
-  fs.writeFileSync(path.join(tmpDir, 'rubrics.js'), 'module.exports = ' + JSON.stringify(rubricsConfig, null, 2) + ';\n', 'utf8');
+  const paths = getAgentPaths(tmpDir);
+  fs.mkdirSync(paths.config.dir, { recursive: true });
+  fs.writeFileSync(paths.config.testCases, JSON.stringify(testCasesModule, null, 2) + '\n', 'utf8');
+  fs.writeFileSync(paths.config.rubrics, 'module.exports = ' + JSON.stringify(rubricsConfig, null, 2) + ';\n', 'utf8');
   // syncAgent() now runs the same scriptChecks.js completeness check as
   // validateAgent() (a script_diff rubric needs a matching handler), so this
   // fixture needs one for 'DD-FMT'.
-  fs.writeFileSync(path.join(tmpDir, 'scriptChecks.js'), 'module.exports = { \'DD-FMT\': () => ({ pass: true, score: 1, notes: {}, recommendation: null }) };\n', 'utf8');
+  fs.writeFileSync(paths.config.scriptChecks, 'module.exports = { \'DD-FMT\': () => ({ pass: true, score: 1, notes: {}, recommendation: null }) };\n', 'utf8');
 
   const { testCasesMd, rubricsMd } = renderAgent(tmpDir);
   const { testCasesModule: parsedTC, rubricsConfig: parsedRubrics } = syncAgent(tmpDir, { testCasesMd, rubricsMd });
@@ -352,7 +471,8 @@ async function testMdRoundTripForComplexFixture() {
 async function testSyncRejectsMangledMarkdownAndWritesNothing() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-test-kit-md-err-'));
   copyExampleAgentInto(tmpDir);
-  const before = fs.readFileSync(path.join(tmpDir, 'test-cases.json'), 'utf8');
+  const paths = getAgentPaths(tmpDir);
+  const before = fs.readFileSync(paths.config.testCases, 'utf8');
 
   const { testCasesMd, rubricsMd } = renderAgent(tmpDir);
   const probeFence = '```json\n{\n  "content": "Buy milk, eggs, and bread on the way home."\n}\n```';
@@ -367,25 +487,27 @@ async function testSyncRejectsMangledMarkdownAndWritesNothing() {
     assert.ok(/EX-001/.test(e.message) && /Probe/.test(e.message), 'the error must localize to the offending test case/section: ' + e.message);
   }
   assert.ok(threw, 'sync must throw on a malformed fenced block');
-  assert.strictEqual(fs.readFileSync(path.join(tmpDir, 'test-cases.json'), 'utf8'), before, 'test-cases.json must be untouched after a failed sync');
+  assert.strictEqual(fs.readFileSync(paths.config.testCases, 'utf8'), before, 'test-cases.json must be untouched after a failed sync');
 }
 
 async function testCheckMdStalenessDetectsDriftAndClearsAfterSync() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-test-kit-stale-'));
   copyExampleAgentInto(tmpDir);
+  const paths = getAgentPaths(tmpDir);
 
   assert.deepStrictEqual(checkMdStaleness(tmpDir), [], 'no .review.md files yet -> nothing to report');
 
   const { testCasesMd, rubricsMd } = renderAgent(tmpDir);
-  fs.writeFileSync(path.join(tmpDir, 'test-cases.review.md'), testCasesMd, 'utf8');
-  fs.writeFileSync(path.join(tmpDir, 'rubrics.review.md'), rubricsMd, 'utf8');
+  fs.mkdirSync(paths.review.dir, { recursive: true });
+  fs.writeFileSync(paths.review.testCasesReview, testCasesMd, 'utf8');
+  fs.writeFileSync(paths.review.rubricsReview, rubricsMd, 'utf8');
   assert.deepStrictEqual(checkMdStaleness(tmpDir), [], 'freshly rendered MD must not be stale');
 
-  const original = fs.readFileSync(path.join(tmpDir, 'test-cases.json'), 'utf8');
-  fs.writeFileSync(path.join(tmpDir, 'test-cases.json'), original.replace('EX-001', 'EX-001-HAND-EDITED'), 'utf8');
+  const original = fs.readFileSync(paths.config.testCases, 'utf8');
+  fs.writeFileSync(paths.config.testCases, original.replace('EX-001', 'EX-001-HAND-EDITED'), 'utf8');
   assert.deepStrictEqual(checkMdStaleness(tmpDir), ['test-cases.review.md'], 'a hand-edited test-cases.json (bypassing the MD) must be flagged stale');
 
-  fs.writeFileSync(path.join(tmpDir, 'test-cases.json'), original, 'utf8');
+  fs.writeFileSync(paths.config.testCases, original, 'utf8');
   syncAgent(tmpDir);
   assert.deepStrictEqual(checkMdStaleness(tmpDir), [], 'a successful sync must re-stamp the marker so staleness clears');
 }
@@ -393,6 +515,7 @@ async function testCheckMdStalenessDetectsDriftAndClearsAfterSync() {
 async function testCheckGateContentDriftFiresAndStaysSilent() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-test-kit-drift-'));
   copyExampleAgentInto(tmpDir);
+  const paths = getAgentPaths(tmpDir);
 
   const hash = computeContentHash(tmpDir);
   const status = {
@@ -401,8 +524,8 @@ async function testCheckGateContentDriftFiresAndStaysSilent() {
   };
   assert.deepStrictEqual(checkGateContentDrift(tmpDir, status), [], 'no drift immediately after stamping the approval hash');
 
-  const original = fs.readFileSync(path.join(tmpDir, 'test-cases.json'), 'utf8');
-  fs.writeFileSync(path.join(tmpDir, 'test-cases.json'), original.replace('EX-001', 'EX-001-CHANGED'), 'utf8');
+  const original = fs.readFileSync(paths.config.testCases, 'utf8');
+  fs.writeFileSync(paths.config.testCases, original.replace('EX-001', 'EX-001-CHANGED'), 'utf8');
   assert.deepStrictEqual(checkGateContentDrift(tmpDir, status), ['gate1', 'gate2'], 'both approved gates must be flagged once content changes post-approval');
 
   assert.deepStrictEqual(
@@ -427,10 +550,12 @@ async function testCheckGateContentDriftFiresAndStaysSilent() {
 async function testCheckMdStalenessDetectsHandEditedReviewMdBody() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-test-kit-stale-body-'));
   copyExampleAgentInto(tmpDir);
+  const paths = getAgentPaths(tmpDir);
 
   const { testCasesMd, rubricsMd } = renderAgent(tmpDir);
-  fs.writeFileSync(path.join(tmpDir, 'test-cases.review.md'), testCasesMd, 'utf8');
-  fs.writeFileSync(path.join(tmpDir, 'rubrics.review.md'), rubricsMd, 'utf8');
+  fs.mkdirSync(paths.review.dir, { recursive: true });
+  fs.writeFileSync(paths.review.testCasesReview, testCasesMd, 'utf8');
+  fs.writeFileSync(paths.review.rubricsReview, rubricsMd, 'utf8');
   assert.deepStrictEqual(checkMdStaleness(tmpDir), [], 'freshly rendered MD must not be stale');
 
   // Edit the .review.md BODY only — test-cases.json is untouched, so the old
@@ -440,7 +565,7 @@ async function testCheckMdStalenessDetectsHandEditedReviewMdBody() {
     'wordCount in the parsed response equals the actual word count of the note. EDITED BY REVIEWER, NOT YET SYNCED.'
   );
   assert.notStrictEqual(editedMd, testCasesMd, 'the edit must actually change the MD body');
-  fs.writeFileSync(path.join(tmpDir, 'test-cases.review.md'), editedMd, 'utf8');
+  fs.writeFileSync(paths.review.testCasesReview, editedMd, 'utf8');
 
   assert.deepStrictEqual(
     checkMdStaleness(tmpDir),
@@ -491,10 +616,11 @@ async function testPersistenceSummarySilentForPlainSink() {
 async function testSyncRejectsScriptDiffRubricMissingHandler() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-test-kit-md-noscriptcheck-'));
   copyExampleAgentInto(tmpDir);
+  const paths = getAgentPaths(tmpDir);
   // example-agent's rubrics.js already declares WC1 as script_diff with a
   // matching scriptChecks.js handler — delete the handler file entirely so
   // sync must now catch the same gap validateAgent() already catches.
-  fs.unlinkSync(path.join(tmpDir, 'scriptChecks.js'));
+  fs.unlinkSync(paths.config.scriptChecks);
 
   const { testCasesMd, rubricsMd } = renderAgent(tmpDir);
   let threw = false;
@@ -533,8 +659,13 @@ async function main() {
     testMarkdownSinkWritesTableAndSummary,
     testMarkdownSinkIncludesNotesColumnWhenOptedIn,
     testMarkdownSinkDefaultsToAFreshTimestampedFilePerRun,
+    testMarkdownSinkResultsDirIsUsedAsIsWithNoSubfolderAppend,
     testMultiSinkFansOutToEverySink,
+    testMultiSinkCloseIsBestEffortAcrossChildren,
+    testMultiSinkWriteAndFinalizeIsolateAThrowingChild,
     testTraceResolverReceivesAgentNameAlongsideClientTraceId,
+    testRunnerClosesResultsSinkEvenWhenFinalizeThrows,
+    testRunnerSurvivesACloseThatAlsoThrows,
     testGateEnforcementLogic,
     testPreflightFailureIsReportedButRunContinues,
     testGetStatsReflectedInPersistenceSummary,

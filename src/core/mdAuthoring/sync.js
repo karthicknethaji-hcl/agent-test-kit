@@ -6,9 +6,9 @@
 // All-or-nothing: syncAgent() builds both JSON objects fully in memory and
 // validates before writing either file — on any error, nothing is written.
 const fs = require('fs');
-const path = require('path');
 const { isDeepStrictEqual } = require('util');
 const { validateContent, requireFresh } = require('../validate');
+const { getAgentPaths } = require('../agentPaths');
 
 const EXECUTION_MODES = ['single-turn', 'multi-turn', 'dual-conversation', 'background-scan', 'repeat-n'];
 
@@ -253,10 +253,9 @@ function parseRubricsMd(mdText) {
 // content that the very next `validate`/`run` would then reject.
 function syncAgent(agentDir, overrides) {
   const ov = overrides || {};
-  const testCasesMdPath = path.join(agentDir, 'test-cases.review.md');
-  const rubricsMdPath = path.join(agentDir, 'rubrics.review.md');
-  const testCasesMdText = ov.testCasesMd !== undefined ? ov.testCasesMd : fs.readFileSync(testCasesMdPath, 'utf8');
-  const rubricsMdText = ov.rubricsMd !== undefined ? ov.rubricsMd : fs.readFileSync(rubricsMdPath, 'utf8');
+  const paths = getAgentPaths(agentDir);
+  const testCasesMdText = ov.testCasesMd !== undefined ? ov.testCasesMd : fs.readFileSync(paths.review.testCasesReview, 'utf8');
+  const rubricsMdText = ov.rubricsMd !== undefined ? ov.rubricsMd : fs.readFileSync(paths.review.rubricsReview, 'utf8');
 
   const { data: testCasesModule } = parseTestCasesMd(testCasesMdText);
   const { data: rubricsConfig } = parseRubricsMd(rubricsMdText);
@@ -267,9 +266,10 @@ function syncAgent(agentDir, overrides) {
   }
 
   if (!ov.dryRun) {
-    fs.writeFileSync(path.join(agentDir, 'test-cases.json'), JSON.stringify(testCasesModule, null, 2) + '\n', 'utf8');
+    fs.mkdirSync(paths.config.dir, { recursive: true });
+    fs.writeFileSync(paths.config.testCases, JSON.stringify(testCasesModule, null, 2) + '\n', 'utf8');
     fs.writeFileSync(
-      path.join(agentDir, 'rubrics.js'),
+      paths.config.rubrics,
       '// Synced from rubrics.review.md by `agent-test-kit sync` — see docs/CONTRACT.md.\nmodule.exports = ' + JSON.stringify(rubricsConfig, null, 2) + ';\n',
       'utf8'
     );
@@ -288,25 +288,22 @@ function syncAgent(agentDir, overrides) {
 // as "stale" (something needs attention) rather than thrown.
 function checkMdStaleness(agentDir) {
   const stale = [];
+  const paths = getAgentPaths(agentDir);
 
-  const testCasesMdPath = path.join(agentDir, 'test-cases.review.md');
-  const testCasesJsonPath = path.join(agentDir, 'test-cases.json');
-  if (fs.existsSync(testCasesMdPath) && fs.existsSync(testCasesJsonPath)) {
+  if (fs.existsSync(paths.review.testCasesReview) && fs.existsSync(paths.config.testCases)) {
     try {
-      const { data: fromMd } = parseTestCasesMd(fs.readFileSync(testCasesMdPath, 'utf8'));
-      const fromDisk = JSON.parse(fs.readFileSync(testCasesJsonPath, 'utf8'));
+      const { data: fromMd } = parseTestCasesMd(fs.readFileSync(paths.review.testCasesReview, 'utf8'));
+      const fromDisk = JSON.parse(fs.readFileSync(paths.config.testCases, 'utf8'));
       if (!isDeepStrictEqual(fromMd, fromDisk)) stale.push('test-cases.review.md');
     } catch (e) {
       stale.push('test-cases.review.md');
     }
   }
 
-  const rubricsMdPath = path.join(agentDir, 'rubrics.review.md');
-  const rubricsPath = path.join(agentDir, 'rubrics.js');
-  if (fs.existsSync(rubricsMdPath) && fs.existsSync(rubricsPath)) {
+  if (fs.existsSync(paths.review.rubricsReview) && fs.existsSync(paths.config.rubrics)) {
     try {
-      const { data: fromMd } = parseRubricsMd(fs.readFileSync(rubricsMdPath, 'utf8'));
-      const fromDisk = requireFresh(rubricsPath);
+      const { data: fromMd } = parseRubricsMd(fs.readFileSync(paths.review.rubricsReview, 'utf8'));
+      const fromDisk = requireFresh(paths.config.rubrics);
       if (!isDeepStrictEqual(fromMd, fromDisk)) stale.push('rubrics.review.md');
     } catch (e) {
       stale.push('rubrics.review.md');

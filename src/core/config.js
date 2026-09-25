@@ -10,6 +10,7 @@ const { createAnthropicJudgeClient } = require('../adapters/judgeClients/anthrop
 const { createMarkdownSink } = require('../adapters/resultsSinks/markdownSink');
 const { createEnvCredentialResolver } = require('../adapters/credentialResolvers/envCredentialResolver');
 const { createIdentityTraceResolver } = require('../adapters/traceResolvers/identityTraceResolver');
+const { getAgentPaths } = require('./agentPaths');
 
 const DEFAULT_CONFIG_FILENAME = 'agent-test-kit.config.js';
 
@@ -36,16 +37,18 @@ function loadConfig(startDir) {
     root,
     agentsDir,
     createJudgeClient: userConfig.createJudgeClient || (() => createAnthropicJudgeClient()),
-    // `dir`, not a fixed `filePath` — so the zero-config default gets a
-    // fresh, timestamped file per run (see markdownSink.js) rooted at the
-    // config's own directory rather than whatever process.cwd() happens to
-    // be, without this file needing to know that naming scheme itself.
-    // `agentName` is passed through from the CLI command (run/smoke) so the
-    // default filename identifies which agent a report belongs to; `options`
-    // (e.g. `{ includeNotes }`) is passed through from `run --notes` — a
-    // custom `createResultsSink` override may ignore either argument if it
-    // doesn't need them.
-    createResultsSink: userConfig.createResultsSink || ((agentName, options) => createMarkdownSink({ dir: root, agentName, includeNotes: options && options.includeNotes })),
+    // `resultsDir`, not a fixed `filePath` — so the zero-config default gets
+    // a fresh, timestamped file per run (see markdownSink.js) rooted at this
+    // agent's own results/ folder (see agentPaths.js) rather than a shared
+    // top-level directory, without this file needing to know that naming
+    // scheme itself. `agentName` is passed through from the CLI command
+    // (run/smoke) so the default filename identifies which agent a report
+    // belongs to; `options` (e.g. `{ includeNotes }`) is passed through from
+    // `run --notes` — a custom `createResultsSink` override may ignore either
+    // argument if it doesn't need them.
+    createResultsSink: userConfig.createResultsSink || ((agentName, options) =>
+      createMarkdownSink({ resultsDir: getAgentPaths(path.join(agentsDir, agentName)).results.dir, agentName, includeNotes: options && options.includeNotes })
+    ),
     createCredentialResolver: userConfig.createCredentialResolver || (() => createEnvCredentialResolver()),
     createTraceResolver: userConfig.createTraceResolver || (() => createIdentityTraceResolver())
   };

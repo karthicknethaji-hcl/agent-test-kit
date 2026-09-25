@@ -1,14 +1,14 @@
--- agent-test-kit's canonical results table.
+-- This package's (agent-test-kit-supabase-mcp-server) canonical results
+-- table.
 --
--- NOT run automatically by agent-test-kit or by Claude Code. Run this once,
--- yourself, against your own Supabase/Postgres project before pointing
--- agent-test-kit.config.js's createResultsSink at supabaseSink.
+-- NOT run automatically by this server, agent-test-kit, or Claude Code. Run
+-- this once, yourself, against your own Supabase/Postgres project before
+-- pointing agent-test-kit.config.js's createMcpSink at this server.
 --
 -- This exact name and shape is deliberately fixed and shared across every
--- repo that adopts agent-test-kit (see src/adapters/resultsSinks/
--- supabaseSink.js's own header comment for why) -- do not rename this table
--- or its columns; a repo-specific need should be met with a VIEW on top of
--- this table, not a schema fork.
+-- repo that adopts this server (see src/server.js's own header comment for
+-- why) -- do not rename this table or its columns; a repo-specific need
+-- should be met with a VIEW on top of this table, not a schema fork.
 
 create table if not exists agent_test_kit_quality_scores (
   id uuid primary key default gen_random_uuid(),
@@ -27,7 +27,7 @@ create table if not exists agent_test_kit_quality_scores (
 );
 
 comment on table agent_test_kit_quality_scores is
-  'Canonical, package-owned results table for agent-test-kit. Shape is fixed across every adopting repo on purpose -- see supabaseSink.js.';
+  'Canonical results table for agent-test-kit-supabase-mcp-server. Shape is fixed across every adopting repo on purpose -- see src/server.js.';
 
 create index if not exists agent_test_kit_quality_scores_agent_run_idx
   on agent_test_kit_quality_scores (agent_name, run_id);

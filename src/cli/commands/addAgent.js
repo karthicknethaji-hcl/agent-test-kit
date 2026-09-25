@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { saveReviewStatus, defaultReviewStatus } = require('../../core/reviewStatus');
+const { getAgentPaths } = require('../../core/agentPaths');
 
 function slugToPascal(slug) {
   return slug.split(/[-_]/).map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join('');
@@ -67,12 +68,14 @@ Onboarded via agent-test-kit. See the root docs/CONTRACT.md for the file
 contracts and docs/GETTING-STARTED.md for the pipeline this folder goes
 through (generate -> Gate 1 review -> Gate 2 review -> run).
 
-## Files
-- \`test-cases.json\` — what to test (schema: src/core/schema/testCase.schema.json)
-- \`rubrics.js\` — how each rubric is scored (schema: src/core/schema/rubric.schema.json)
-- \`invoke-config.js\` — how to actually call this agent
-- \`scriptChecks.js\` — only needed if any rubric is \`evaluatorType: 'script_diff'\`
-- \`review-status.json\` — Gate 1 / Gate 2 approval, enforced by \`agent-test-kit run\`
+## Layout
+- \`config/test-cases.json\` — what to test (schema: src/core/schema/testCase.schema.json)
+- \`config/rubrics.js\` — how each rubric is scored (schema: src/core/schema/rubric.schema.json)
+- \`config/invoke-config.js\` — how to actually call this agent
+- \`config/scriptChecks.js\` — only needed if any rubric is \`evaluatorType: 'script_diff'\`
+- \`review/review-status.json\` — Gate 1 / Gate 2 approval, enforced by \`agent-test-kit run\`
+- \`review/test-cases.review.md\`, \`review/rubrics.review.md\` — human-editable Markdown, written by \`agent-test-kit render\` / read back by \`agent-test-kit sync\`
+- \`results/\` — this agent's own run output (written by \`agent-test-kit run\`)
 `;
 
 function addAgent(agentsDir, agentName) {
@@ -80,12 +83,14 @@ function addAgent(agentsDir, agentName) {
   const agentDir = path.join(agentsDir, agentName);
   if (fs.existsSync(agentDir)) throw new Error('Agent folder already exists: ' + agentDir);
 
-  fs.mkdirSync(agentDir, { recursive: true });
+  const paths = getAgentPaths(agentDir);
+  fs.mkdirSync(paths.config.dir, { recursive: true });
+  fs.mkdirSync(paths.review.dir, { recursive: true });
   const className = slugToPascal(agentName);
-  fs.writeFileSync(path.join(agentDir, 'test-cases.json'), TEST_CASES_TEMPLATE(agentName), 'utf8');
-  fs.writeFileSync(path.join(agentDir, 'rubrics.js'), RUBRICS_TEMPLATE, 'utf8');
-  fs.writeFileSync(path.join(agentDir, 'invoke-config.js'), INVOKE_CONFIG_TEMPLATE(agentName, className), 'utf8');
-  fs.writeFileSync(path.join(agentDir, 'README.md'), README_TEMPLATE(agentName), 'utf8');
+  fs.writeFileSync(paths.config.testCases, TEST_CASES_TEMPLATE(agentName), 'utf8');
+  fs.writeFileSync(paths.config.rubrics, RUBRICS_TEMPLATE, 'utf8');
+  fs.writeFileSync(paths.config.invokeConfig, INVOKE_CONFIG_TEMPLATE(agentName, className), 'utf8');
+  fs.writeFileSync(paths.readme, README_TEMPLATE(agentName), 'utf8');
   saveReviewStatus(agentDir, defaultReviewStatus());
 
   console.log('Scaffolded ' + agentDir);
