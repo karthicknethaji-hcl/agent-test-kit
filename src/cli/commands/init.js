@@ -67,15 +67,18 @@ function init(cwd, options) {
   console.log('Ensured ' + agentsDir + ' exists.');
 
   // Every agent's own results/ folder (see docs/CONTRACT.md "Per-agent
-  // folder layout") holds generated run output — without an ignore rule
-  // here, a consuming repo would git-track every timestamped report by
-  // default the moment `agent-test-kit run` writes one.
+  // folder layout") holds generated run output, and `migrate-layout` drops a
+  // timestamped backup snapshot at the repo root before it moves anything —
+  // without ignore rules for both, a consuming repo would git-track every
+  // timestamped report and every migration backup by default.
   const gitignorePath = path.join(cwd, '.gitignore');
-  const ignoreLine = 'test-suite/agents/*/results/';
+  const ignoreLines = ['test-suite/agents/*/results/', '.agent-test-kit-migration-backup-*/'];
   const existing = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, 'utf8') : '';
-  if (!existing.split(/\r?\n/).includes(ignoreLine)) {
-    fs.writeFileSync(gitignorePath, existing + (existing && !existing.endsWith('\n') ? '\n' : '') + ignoreLine + '\n', 'utf8');
-    console.log('Added "' + ignoreLine + '" to ' + gitignorePath + '.');
+  const existingLines = existing.split(/\r?\n/);
+  const missingLines = ignoreLines.filter((line) => !existingLines.includes(line));
+  if (missingLines.length > 0) {
+    fs.writeFileSync(gitignorePath, existing + (existing && !existing.endsWith('\n') ? '\n' : '') + missingLines.join('\n') + '\n', 'utf8');
+    console.log('Added ' + missingLines.map((l) => '"' + l + '"').join(', ') + ' to ' + gitignorePath + '.');
   }
   console.log('\nNext: npx agent-test-kit add-agent <name>');
 }

@@ -27,7 +27,7 @@
     "access": "public"
   },
   "scripts": {
-    "test": "node test/run-example-agent.test.js && node test/mcp-sink.test.js && node test/results-cmd.test.js && node test/migrate-layout.test.js && node test/cli-version.test.js",
+    "test": "node test/run-example-agent.test.js && node test/mcp-sink.test.js && node test/results-cmd.test.js && node test/migrate-layout.test.js && node test/cli-version.test.js && node test/init-cmd.test.js",
     "verify:mcp-servers": "node scripts/verify-mcp-servers.js"
   },
   "dependencies": {
