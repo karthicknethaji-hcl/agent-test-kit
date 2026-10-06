@@ -61,6 +61,9 @@ pipeline" for the full stage-by-stage breakdown.
    hand-edit `review-status.json` yourself.
 7. `npx agent-test-kit run <name>` — refuses until both gates are approved.
 
+To persist run results to a shared database instead of a local Markdown
+report, see `docs/PERSISTING-RESULTS.md`.
+
 Anytime: `npx agent-test-kit status` to see every agent's schema/gate
 state, and `npx agent-test-kit check-md-staleness <name>` (read-only,
 always safe) to check whether a `.review.md` file holds edits that were

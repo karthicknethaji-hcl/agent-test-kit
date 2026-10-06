@@ -70,6 +70,9 @@ this repo, published as independent packages:
   starting point for any other backend (Postgres, MySQL, SQLite, Mongo, a
   REST API — anything).
 
+**App teams: see [docs/PERSISTING-RESULTS.md](docs/PERSISTING-RESULTS.md)** for the step-by-step setup (pick a server, wire
+`agent-test-kit.config.js`, credentials, what happens at run time, limits).
+
 Existing repos already on an agent-test-kit release with `createSupabaseSink`
 should see `CHANGELOG.md` for the migration path, and every repo upgrading
 past the per-agent folder restructure should run
@@ -106,6 +109,28 @@ Or without installing, via `npx`:
 ```
 npx @karthicknethaji-hcl/agent-test-kit init
 ```
+
+## Upgrading
+
+Upgrading the package never modifies agent folders you already scaffolded.
+Release-specific steps (layout changes, migrations) live in
+[docs/UPGRADING.md](docs/UPGRADING.md), which is kept current on GitHub, so
+check it after every upgrade.
+
+1. Check what you have and what's latest:
+   ```
+   agent-test-kit --version
+   npm view @karthicknethaji-hcl/agent-test-kit version
+   ```
+2. Upgrade:
+   - Project dependency: `npm install @karthicknethaji-hcl/agent-test-kit@latest`
+     (a plain `npm update` won't cross a `^0.x` minor boundary)
+   - Global install: `npm install -g @karthicknethaji-hcl/agent-test-kit@latest`
+   - `npx`: use `npx @karthicknethaji-hcl/agent-test-kit@latest <command>`
+     to bypass a cached older version
+3. Open [docs/UPGRADING.md](docs/UPGRADING.md), find every version between
+   your old one and the new one, and follow any steps listed.
+4. Run `agent-test-kit --help` to see the current commands.
 
 ## Installing the Claude Code plugin
 
