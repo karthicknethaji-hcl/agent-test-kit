@@ -15,6 +15,11 @@
           "enum": ["script_diff", "llm_judge", "toxicity_scan"]
         },
         "scale": { "type": "string" },
+        "certRationale": { "type": "string" },
+        "certMetric": {
+          "type": "string",
+          "enum": ["G", "H", "A1", "A2", "A3", "X", "T", "C", "F", "B", "S1", "S2", "N", "P1", "P2", "L"]
+        },
         "threshold": { "type": "number", "minimum": 0, "maximum": 1 },
         "judgePromptTemplate": { "type": "string" }
       },

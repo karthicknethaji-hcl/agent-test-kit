@@ -9,6 +9,7 @@ const { statusCmd } = require('../src/cli/commands/statusCmd');
 const { smokeCmd } = require('../src/cli/commands/smokeCmd');
 const { runCmd } = require('../src/cli/commands/runCmd');
 const { renderCmd } = require('../src/cli/commands/renderCmd');
+const { coverageCmd } = require('../src/cli/commands/coverageCmd');
 const { syncCmd } = require('../src/cli/commands/syncCmd');
 const { checkMdStalenessCmd } = require('../src/cli/commands/checkMdStalenessCmd');
 const { resultsCmd } = require('../src/cli/commands/resultsCmd');
@@ -72,6 +73,7 @@ Usage:
                                               Run the agent's approved test suite
                                               (--notes includes the evaluator Notes column in the report; off by default)
   agent-test-kit render <name>               Write test-cases.review.md + rubrics.review.md from JSON
+  agent-test-kit coverage <name>             Write a timestamped results/coverage-report-<ts>.md (coverage, depth, gaps)
   agent-test-kit sync <name>                 Parse the .review.md files back into JSON, validate, write
   agent-test-kit check-md-staleness <name>   Warn if .review.md holds edits never synced to JSON (read-only)
   agent-test-kit results <name> [--pass true|false] [--from date] [--to date]
@@ -139,6 +141,12 @@ async function main() {
   if (command === 'render') {
     const config = loadConfig(cwd);
     renderCmd(config.agentsDir, positional[0]);
+    return;
+  }
+
+  if (command === 'coverage') {
+    const config = loadConfig(cwd);
+    coverageCmd(config.agentsDir, positional[0]);
     return;
   }
 

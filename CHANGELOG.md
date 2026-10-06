@@ -6,6 +6,37 @@ this changelog specifically, separate from `package.json`'s npm semver
 version (which follows normal semver rules and is bumped independently when
 the package is actually published).
 
+## [0.12] - 2026-10-06 (npm 0.4.0)
+
+### Added
+
+- Test suite coverage report: optional `coverage` block (requirements
+  inventory, `uncovered`, `independentPass`) in test-cases.json, per-test
+  `covers`/`variant`, new `agent-test-kit coverage <agent>` command, and
+  timestamped `results/coverage-report-<ts>.md` (auto-written by
+  `validate`/`render`/`sync`, never overwritten, skipped if unchanged; a summary
+  is embedded in `test-cases.review.md`). Reports requirement coverage %,
+  scenario depth %, certification baseline %, inventory confidence %, a
+  category/test-ID summary table, and a spec-vs-code cross-check. Warnings only.
+
+### Fixed
+
+- Advisory certification/coverage checks no longer crash `validate`/`render` on
+  malformed data, a failed report write no longer fails `render`, a requirement
+  missing `source` is flagged when both inputs are given, and CLI help/labels
+  match the timestamped report name.
+
+## [0.11] - 2026-10-06
+
+### Added
+
+- Certification baseline: 12 categories / 16 standard metrics
+  (`src/core/certification.js`), optional `certMetric` on rubrics and
+  `certWaivers` in test-cases.json (round-tripped through the `.review.md`
+  files). `validate` warns on uncovered categories and missing `certRationale`;
+  baseline scoring is indicative, chosen per agent;
+  generator and Gate 1 review skills updated to require coverage.
+
 ## [0.10] - 2026-09-25
 
 ### Breaking

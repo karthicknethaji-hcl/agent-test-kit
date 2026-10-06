@@ -3,6 +3,7 @@ const path = require('path');
 const { renderAgent } = require('../../core/mdAuthoring/render');
 const { checkMdStaleness } = require('../../core/mdAuthoring/sync');
 const { getAgentPaths } = require('../../core/agentPaths');
+const { writeCoverageReport } = require('../../core/coverage');
 
 // JSON -> Markdown. Warns (never blocks) if it's about to clobber unsynced
 // .review.md edits — same "warn, don't block" posture as the rest of this
@@ -27,6 +28,12 @@ function renderCmd(agentsDir, agentName) {
 
   console.log('[render] wrote ' + paths.review.testCasesReview);
   console.log('[render] wrote ' + paths.review.rubricsReview);
+  try {
+    const cov = writeCoverageReport(agentDir);
+    console.log('[render] coverage report' + (cov.unchanged ? ' (unchanged): ' : ': ') + cov.file);
+  } catch (e) {
+    console.warn('[render] could not write coverage report: ' + e.message);
+  }
 }
 
 module.exports = { renderCmd };

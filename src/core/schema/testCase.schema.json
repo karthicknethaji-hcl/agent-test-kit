@@ -9,6 +9,52 @@
     "schemaVersion": { "type": "string" },
     "sourceDoc": { "type": "string" },
     "note": { "type": "string" },
+    "coverage": {
+      "type": "object",
+      "properties": {
+        "inputs": { "enum": ["spec", "code", "both"] },
+        "requirements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "summary"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "summary": { "type": "string" },
+              "source": { "enum": ["both", "spec-only", "code-only"] },
+              "specRef": { "type": "string" },
+              "codeRef": { "type": "string" },
+              "gapNote": { "type": "string" },
+              "variantsNotApplicable": {
+                "type": "object",
+                "propertyNames": { "enum": ["happy", "negative", "boundary"] },
+                "additionalProperties": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        },
+        "uncovered": { "type": "object", "additionalProperties": { "type": "string" } },
+        "independentPass": {
+          "type": "object",
+          "properties": {
+            "reviewer": { "type": "string" },
+            "date": { "type": "string" },
+            "extraRequirements": {
+              "type": "array",
+              "items": { "type": "object", "required": ["summary"], "properties": { "summary": { "type": "string" }, "ref": { "type": "string" } } }
+            }
+          }
+        },
+        "minRequirementCoverage": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "certWaivers": {
+      "type": "object",
+      "propertyNames": {
+        "enum": ["groundedness", "hallucination", "accuracy", "adversarial", "tone", "consistency", "format", "bias", "safety", "robustness", "privacy", "completeness"]
+      },
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    },
     "testCases": {
       "type": "array",
       "items": { "$ref": "#/definitions/testCase" }
@@ -27,6 +73,8 @@
           "type": "string",
           "enum": ["single-turn", "multi-turn", "dual-conversation", "background-scan", "repeat-n"]
         },
+        "covers": { "type": "array", "items": { "type": "string" } },
+        "variant": { "enum": ["happy", "negative", "boundary"] },
         "expectedBehaviorNote": { "type": "string" },
         "failureModeNote": { "type": "string" },
         "judgeContext": { "type": "object" },

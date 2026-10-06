@@ -2,11 +2,53 @@
   "agentName": "example-agent",
   "schemaVersion": "1.0",
   "note": "Reference test suite for the bundled example-agent — used by the package's own end-to-end test and as the generator skill's structural reference.",
+  "certWaivers": {
+    "groundedness": "Toy example agent; no source material to ground against.",
+    "hallucination": "Toy example agent; no factual claims.",
+    "adversarial": "Toy example agent; not exposed to untrusted input.",
+    "consistency": "Deterministic word count; no repeat-run variance.",
+    "format": "Output is a plain number; covered by WC1.",
+    "bias": "Toy example agent; no user-attribute-dependent behavior.",
+    "safety": "Toy example agent; no unsafe-content surface.",
+    "robustness": "Toy example agent; out of scope for the reference suite.",
+    "privacy": "Toy example agent; handles no personal data.",
+    "completeness": "Toy example agent; out of scope for the reference suite."
+  },
+  "coverage": {
+    "inputs": "both",
+    "requirements": [
+      {
+        "id": "EX-R1",
+        "summary": "Reports an accurate word count for the note",
+        "source": "both",
+        "specRef": "README.md",
+        "codeRef": "config/invoke-config.js",
+        "variantsNotApplicable": {
+          "negative": "Any text input is valid; no rejected input.",
+          "boundary": "No numeric limit on note length."
+        }
+      },
+      {
+        "id": "EX-R2",
+        "summary": "Never mocks or judges the note content",
+        "source": "both",
+        "specRef": "README.md",
+        "codeRef": "config/invoke-config.js",
+        "variantsNotApplicable": {
+          "negative": "Toy agent; no adversarial input surface.",
+          "boundary": "No quantitative limit."
+        }
+      }
+    ],
+    "independentPass": { "reviewer": "reference example", "date": "2026-10-06", "extraRequirements": [] }
+  },
   "testCases": [
     {
       "testId": "EX-001",
       "category": "correctness",
       "rubric": "WC1",
+      "covers": ["EX-R1"],
+      "variant": "happy",
       "v1Scope": true,
       "executionMode": "single-turn",
       "probe": { "content": "Buy milk, eggs, and bread on the way home." },
@@ -17,6 +59,8 @@
       "testId": "EX-002",
       "category": "tone",
       "rubric": "TONE1",
+      "covers": ["EX-R2"],
+      "variant": "happy",
       "v1Scope": true,
       "executionMode": "single-turn",
       "probe": { "content": "I forgot to call the dentist again, I'm so bad at this." },
