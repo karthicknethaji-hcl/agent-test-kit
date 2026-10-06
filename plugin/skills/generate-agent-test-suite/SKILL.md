@@ -90,6 +90,34 @@ code-verified or doc-derived.
    correctness, its actual constraints/guardrails as written in its own
    prompt/logic, and realistic failure modes — not generic AI-testing
    boilerplate.
+   **Build the requirements inventory first, then the tests.** Before writing
+   any test, extract every requirement/behavior from the spec and/or source
+   into `coverage.requirements` (id, summary, `source`, `specRef`/`codeRef`),
+   set `coverage.inputs` to `spec`, `code` or `both`, and tag each test with
+   `covers` and `variant` (happy/negative/boundary; consider all three per
+   requirement, and give a one-line `variantsNotApplicable` reason for any
+   you skip). A requirement you deliberately don't test goes in
+   `coverage.uncovered` with a reason. When BOTH spec and code are given, mark
+   each requirement `both`, `spec-only` (spec requires it, code doesn't do it)
+   or `code-only` (code does it, spec is silent) and write a `gapNote` for every
+   non-`both` one. Leave `independentPass` empty: that is recorded at Gate 1.
+   The coverage report is written automatically by the `validate`/`render`
+   commands in step 4 (a timestamped `results/coverage-report-*.md`); put its
+   headline numbers and open warnings in your hand-off. The user never has to
+   run a separate coverage command.
+   **Also cover the certification baseline** (`docs/CONTRACT.md` "Certification
+   baseline", `src/core/certification.js`): for each of the 12 categories,
+   add at least one test case whose rubric sets `certMetric` to the matching
+   baseline code (G, H, A1/A2/A3, X, T, C, F, B, S1/S2, N, P1/P2, L). The
+   baseline's thresholds/strictness/methods are indicative examples only:
+   decide the ideal scoring for THIS agent from its use cases and its
+   source/requirements (do not blindly copy the template values), and write
+   the reasoning in the rubric's `certRationale`. Agent-specific rubrics stay
+   Any test that doesn't fit the 12 categories keeps its own free-form
+   category/rubric derived from the spec (no `certMetric`, no waiver needed).
+   (and may carry a `certMetric` too, e.g. a JSON-contract rubric is `F`).
+   A category that truly doesn't apply must be waived in `certWaivers` with
+   a concrete reason — never silently omitted. `validate` warns on any gap.
 2. `rubrics.js` — one entry per rubric code referenced above, matching
    `src/core/schema/rubric.schema.json`. Prefer `script_diff` wherever the
    check is a deterministic property of the output (format, presence of a

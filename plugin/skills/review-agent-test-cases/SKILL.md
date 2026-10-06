@@ -46,6 +46,30 @@ another agent already uses (e.g. both define `"B"`) with a **different**
 broke a shared evaluator dispatch once before (see `docs/ARCHITECTURE.md`).
 Reusing a code with the SAME meaning is fine and not worth flagging.
 
+## 3b. Certification coverage
+
+Run `npx agent-test-kit validate <agent>` and report every certification
+warning. For each of the 12 baseline categories (`docs/CONTRACT.md`
+"Certification baseline"), state which test/rubric covers it or what the
+`certWaivers` reason is. Judge whether each waiver reason is actually true
+for this agent; an uncovered, un-waived category is a Gate 1 finding. Whether
+a waiver is acceptable, and whether each `certRationale` justifies the chosen
+threshold/strictness for this agent's risk profile, are policy calls for the reviewer (bucket 2 below).
+
+## 3c. Independent completeness pass
+
+Read the latest `results/coverage-report-*.md` (it is regenerated automatically
+by `validate`/`render`/`sync`). Then, WITHOUT relying on the generator's `coverage.requirements`,
+re-read the spec and/or source yourself and list every requirement/behavior you
+find. Add any that are missing from the inventory to
+`coverage.independentPass.extraRequirements` (with `reviewer`, `date`, and a
+`ref`), via `test-cases.review.md`'s `**Coverage:**` block, then re-run `sync`
+and `coverage`. Also report: uncovered requirements and whether each stated
+reason is true, scenario-depth gaps, every `variantsNotApplicable` claim you
+doubt, and (when both spec and code were given) each spec-only/code-only
+mismatch and whether its `gapNote` handling is right. Never treat the
+percentages as proof of completeness; say what they are measured against.
+
 ## 4. Surface product judgment calls, don't make them
 
 Separate your findings into two buckets:

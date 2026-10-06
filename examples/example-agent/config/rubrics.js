@@ -4,12 +4,16 @@ module.exports = {
   // lives in scriptChecks.js, keyed by this same code "WC1".
   WC1: {
     metric: 'word-count-accuracy',
+    certMetric: 'A1',
+    certRationale: 'Word count is deterministic, so exact match is the right bar.',
     evaluatorType: 'script_diff'
   },
 
   // llm_judge — needs a judgeClient (default: ANTHROPIC_API_KEY).
   TONE1: {
     metric: 'tone-politeness',
+    certMetric: 'T',
+    certRationale: 'Binary: any rude/dismissive note summary is a defect; no partial credit for this toy agent.',
     evaluatorType: 'llm_judge',
     scale: 'binary',
     judgePromptTemplate:

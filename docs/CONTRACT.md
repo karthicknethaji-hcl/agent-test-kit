@@ -124,11 +124,104 @@ module.exports = {
     evaluatorType: 'script_diff | llm_judge | toxicity_scan',
     scale: 'binary | 0-1',            // llm_judge/toxicity_scan only
     threshold: 0.7,                    // llm_judge only, scaled rubrics; default 0.7
+    certMetric: 'G',                   // optional: which baseline metric this implements
+    certRationale: 'string',           // why this threshold/strictness/evaluator fits THIS agent
     judgePromptTemplate: 'string'      // required for llm_judge/toxicity_scan;
                                          // {{output}}, {{sourceMaterial}}, etc. filled by evaluator.js
   }
 };
 ```
+
+### Certification baseline (12 categories / 16 metrics)
+
+Every suite is expected to cover the baseline in addition to its
+agent-specific rubrics. Defined in `src/core/certification.js`. **The scoring
+column is an indicative example, not a rule**: when drafting rubrics, choose
+the threshold, zero-tolerance vs. scaled, and evaluator type that best fit
+the agent's use cases and its inputs (source code / requirements), using this
+table only as a starting point, and record the reasoning in `certRationale`
+(e.g. a medical-advice agent may make Groundedness zero-tolerance; a casual
+chatbot may relax Tone).
+
+| Category | Metric(s) | Indicative scoring | Method |
+|---|---|---|---|
+| Groundedness | G | 0.70 | AI judge |
+| Hallucination | H | zero-tolerance | AI judge |
+| Accuracy | A1, A2 / A3 | exact match / 0.90 | script / AI judge |
+| Adversarial | X | zero-tolerance | AI judge |
+| Tone / calibration | T | 0.75 | AI judge |
+| Consistency | C | set match | script + AI judge |
+| Format compliance | F | zero-tolerance | script |
+| Bias | B | 0.75 | AI judge |
+| Safety | S1 / S2 | zero-tolerance | AI judge / toxicity scan |
+| Robustness | N | 0.70 | AI judge |
+| Privacy | P1 / P2 | zero-tolerance / 0.90 | script / AI judge |
+| Completeness | L | 0.75 | AI judge |
+
+- A rubric declares which baseline metric it implements with `certMetric`
+  (one of the 16 codes). Its own code (e.g. `RA-REALBASIS`) stays free-form.
+- **Fallback:** a test case that doesn't fit any of the 12 categories simply
+  omits `certMetric` and keeps its own free-form `category`/rubric code,
+  derived from the agent's spec as before. Nothing is marked N/A for it;
+  `certWaivers` is only for a *standard category* the agent has no test for.
+- A category that doesn't apply to the agent is waived in `test-cases.json`
+  with a reason: `"certWaivers": { "bias": "No user-attribute-dependent behavior." }`.
+  In `test-cases.review.md` this appears as a `**Cert Waivers:**` json block;
+  in `rubrics.review.md` as `- **Cert Metric:**` / `- **Cert Rationale:**` bullets.
+- `agent-test-kit validate` prints **warnings** (never errors) for an
+  uncovered, un-waived category, a bad waiver, a tagged rubric no test uses,
+  or a `certMetric` rubric with no `certRationale`. Scoring values themselves
+  are never flagged; Gate 1 review judges whether the rationale is sound.
+
+### Coverage report (requirements, scenario depth, gaps)
+
+Optional but expected. The report is generated automatically by `validate`,
+`render` and `sync`, so onboarding needs no extra user step; `agent-test-kit coverage <agent>` (also run by `validate`
+and `render`) writes a new timestamped `<agent>/results/coverage-report-<ts>.md`
+(never overwritten, like run results; skipped when the suite hash is unchanged
+since the latest report), and `render` embeds a short summary at the top of `test-cases.review.md`. It answers "how much of
+what we identified is tested, and what is missing", as percentages plus tables.
+
+Data lives in `test-cases.json`:
+
+```jsonc
+"coverage": {
+  "inputs": "both",                       // spec | code | both: what the drafter was given
+  "requirements": [{
+    "id": "FR-CQ-1", "summary": "Always 2-4 options",
+    "source": "both",                     // both | spec-only | code-only (see below)
+    "specRef": "spec 4.3", "codeRef": "src/cq.js:88",
+    "gapNote": "how to handle a spec/code mismatch",   // needed when source != both and inputs = both
+    "variantsNotApplicable": { "boundary": "no numeric limit" }   // reason required
+  }],
+  "uncovered": { "FR-DOC-5": "not observable headlessly" },     // deliberately untested, with reason
+  "independentPass": {                    // recorded at Gate 1 by re-reading spec/source WITHOUT the inventory
+    "reviewer": "name", "date": "2026-10-06",
+    "extraRequirements": [{ "summary": "undo last capability", "ref": "spec 4.2" }]
+  },
+  "minRequirementCoverage": 0.8           // optional; default 0.8 (warning, not a block)
+}
+```
+
+Each test case adds `"covers": ["FR-CQ-1"]` and `"variant": "happy" | "negative" | "boundary"`.
+
+- **happy**: normal input, agent should succeed. **negative**: bad/hostile/off-script
+  input, agent must refuse or handle gracefully. **boundary**: the edges of a rule
+  (min/max/just-over). A variant that doesn't apply is excluded via
+  `variantsNotApplicable` with a reason.
+- **Requirement coverage %** = requirements with at least one test / requirements
+  in the inventory. **Scenario depth %** = variants present / variants expected
+  (excluding N/A and deliberately-untested requirements). **Certification
+  baseline %** = covered categories / (12 - waived). **Inventory confidence %** =
+  inventoried / (inventoried + extras found by the independent pass).
+- **These measure the suite against the identified inventory, not against
+  reality.** A requirement nobody extracted is invisible; inventory confidence is
+  the only signal about that, which is why the independent pass exists.
+- **Cross-check (inputs = both):** `source: spec-only` means the spec requires it
+  but the code does not implement it (non-compliant or unbuilt); `code-only` means
+  the code does it but the spec is silent (undocumented behavior). The report lists
+  both with their `gapNote`. With a single input the section says it can't be assessed.
+- All findings are warnings, never errors.
 
 ### `review-status.json`
 

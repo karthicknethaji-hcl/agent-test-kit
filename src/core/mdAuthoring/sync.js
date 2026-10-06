@@ -138,6 +138,10 @@ function parseTestCaseBlock(block) {
   }
 
   const testCase = { testId, category, rubric, v1Scope: v1ScopeRaw === 'true', executionMode };
+  const coversRaw = matchBullet(lines, 'Covers', testId, false);
+  if (coversRaw !== undefined) testCase.covers = coversRaw.split(',').map((x) => x.trim()).filter(Boolean);
+  const variantRaw = matchBullet(lines, 'Variant', testId, false);
+  if (variantRaw !== undefined) testCase.variant = variantRaw;
 
   if (executionMode === 'dual-conversation') {
     const convBlocks = splitByHeading(lines, 3, ['**Judge Context:**', '**Expected behavior:**', '**Failure mode:**']);
@@ -190,9 +194,11 @@ function parseTestCasesMd(mdText) {
 
   const firstHeadingIdx = rest.findIndex((l) => l.startsWith('## '));
   const preambleLines = rest.slice(schemaLineIdx + 1, firstHeadingIdx === -1 ? rest.length : firstHeadingIdx);
-  const preambleFields = extractBlocks(preambleLines, ['Source Doc', 'Note']);
+  const preambleFields = extractBlocks(preambleLines, ['Source Doc', 'Note', 'Cert Waivers', 'Coverage']);
   const sourceDoc = readTextField(preambleFields, 'Source Doc');
   const note = readTextField(preambleFields, 'Note');
+  const certWaivers = readJsonField(preambleFields, 'Cert Waivers', 'preamble');
+  const coverage = readJsonField(preambleFields, 'Coverage', 'preamble');
 
   const bodyLines = firstHeadingIdx === -1 ? [] : rest.slice(firstHeadingIdx);
   const testCases = splitByHeading(bodyLines, 2).map(parseTestCaseBlock);
@@ -200,6 +206,8 @@ function parseTestCasesMd(mdText) {
   const data = { agentName, schemaVersion, testCases };
   if (sourceDoc !== undefined) data.sourceDoc = sourceDoc;
   if (note !== undefined) data.note = note;
+  if (certWaivers !== undefined) data.certWaivers = certWaivers;
+  if (coverage !== undefined) data.coverage = coverage;
 
   return { data, sourceHash };
 }
@@ -224,6 +232,10 @@ function parseRubricsMd(mdText) {
     const evaluatorType = matchBullet(lines2, 'Evaluator Type', code, true);
     const rubric = { metric, evaluatorType };
 
+    const certMetric = matchBullet(lines2, 'Cert Metric', code, false);
+    if (certMetric !== undefined) rubric.certMetric = certMetric;
+    const certRationale = matchBullet(lines2, 'Cert Rationale', code, false);
+    if (certRationale !== undefined) rubric.certRationale = certRationale;
     const scale = matchBullet(lines2, 'Scale', code, false);
     if (scale !== undefined) rubric.scale = scale;
     const thresholdRaw = matchBullet(lines2, 'Threshold', code, false);

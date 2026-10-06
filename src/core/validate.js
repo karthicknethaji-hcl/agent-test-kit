@@ -10,6 +10,8 @@ const Ajv = require('ajv');
 const testCaseSchema = require('./schema/testCase.schema.json');
 const rubricSchema = require('./schema/rubric.schema.json');
 const { getAgentPaths } = require('./agentPaths');
+const { certificationWarnings } = require('./certification');
+const { coverageWarnings } = require('./coverage');
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 const validateTestCases = ajv.compile(testCaseSchema);
@@ -104,7 +106,17 @@ function validateAgent(agentDir) {
   if (typeof invoke.createConversationState !== 'function') errors.push('invoke-config.js: missing function export "createConversationState()"');
   if (typeof invoke.sendMessage !== 'function') errors.push('invoke-config.js: missing function export "async sendMessage(state, action)"');
 
-  return { valid: errors.length === 0, errors };
+  // Advisory checks assume schema-valid input; skip them (rather than crash
+  // with a TypeError) when there are already hard errors to report.
+  let warnings = [];
+  if (errors.length === 0) {
+    try {
+      warnings = certificationWarnings(testCasesModule, rubricsConfig).concat(coverageWarnings(testCasesModule, rubricsConfig));
+    } catch (e) {
+      warnings = ['could not compute certification/coverage warnings: ' + e.message];
+    }
+  }
+  return { valid: errors.length === 0, errors, warnings };
 }
 
 module.exports = { validateAgent, validateContent, formatErrors, requireFresh };

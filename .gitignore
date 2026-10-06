@@ -5,4 +5,5 @@ node_modules/
 .agent-test-kit-judge-exchange/
 .agent-test-kit-migration-backup-*/
 test-suite/agents/*/results/
+examples/*/results/
 *.log

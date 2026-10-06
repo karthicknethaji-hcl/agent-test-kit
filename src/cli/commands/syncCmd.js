@@ -2,6 +2,7 @@ const path = require('path');
 const { syncAgent } = require('../../core/mdAuthoring/sync');
 const { loadReviewStatus, warnIfGateContentDrifted } = require('../../core/reviewStatus');
 const { getAgentPaths } = require('../../core/agentPaths');
+const { writeCoverageReport } = require('../../core/coverage');
 
 // Markdown -> JSON. All-or-nothing: on any validation error, syncAgent()
 // throws before writing anything (see sync.js).
@@ -18,6 +19,13 @@ function syncCmd(agentsDir, agentName) {
   }
 
   console.log('[sync] wrote ' + paths.config.testCases + ' and ' + paths.config.rubrics);
+
+  try {
+    const cov = writeCoverageReport(agentDir);
+    console.log('[sync] coverage report' + (cov.unchanged ? ' (unchanged): ' : ': ') + cov.file);
+  } catch (e) {
+    console.warn('[sync] could not write coverage report: ' + e.message);
+  }
 
   warnIfGateContentDrifted(agentDir, loadReviewStatus(agentDir));
 

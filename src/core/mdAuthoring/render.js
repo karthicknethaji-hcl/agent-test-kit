@@ -5,6 +5,7 @@
 const fs = require('fs');
 const { sha256 } = require('./hash');
 const { getAgentPaths } = require('../agentPaths');
+const { computeCoverage, renderSummaryBlock } = require('../coverage');
 
 function jsonBlock(label, value) {
   return ['**' + label + ':**', '```json', JSON.stringify(value, null, 2), '```', ''];
@@ -22,6 +23,8 @@ function renderTestCase(tc) {
   lines.push('- **Rubric:** ' + tc.rubric);
   lines.push('- **V1 Scope:** ' + tc.v1Scope);
   lines.push('- **Execution Mode:** ' + tc.executionMode);
+  if (tc.covers !== undefined) lines.push('- **Covers:** ' + tc.covers.join(', '));
+  if (tc.variant !== undefined) lines.push('- **Variant:** ' + tc.variant);
   lines.push('');
 
   if (tc.executionMode === 'dual-conversation') {
@@ -46,7 +49,7 @@ function renderTestCase(tc) {
   return lines;
 }
 
-function renderTestCasesMd(testCasesModule, sourceHash) {
+function renderTestCasesMd(testCasesModule, sourceHash, summaryLines) {
   const lines = [];
   lines.push('<!-- agent-test-kit:kind:test-cases -->');
   lines.push('<!-- agent-test-kit:agent:' + testCasesModule.agentName + ' -->');
@@ -56,8 +59,11 @@ function renderTestCasesMd(testCasesModule, sourceHash) {
   lines.push('');
   lines.push('Schema version: ' + testCasesModule.schemaVersion);
   lines.push('');
+  if (summaryLines && summaryLines.length) lines.push(...summaryLines);
   if (testCasesModule.sourceDoc !== undefined) lines.push(...textBlock('Source Doc', testCasesModule.sourceDoc));
   if (testCasesModule.note !== undefined) lines.push(...textBlock('Note', testCasesModule.note));
+  if (testCasesModule.certWaivers !== undefined) lines.push(...jsonBlock('Cert Waivers', testCasesModule.certWaivers));
+  if (testCasesModule.coverage !== undefined) lines.push(...jsonBlock('Coverage', testCasesModule.coverage));
 
   for (const tc of testCasesModule.testCases) lines.push(...renderTestCase(tc));
 
@@ -70,6 +76,8 @@ function renderRubric(code, rubric) {
   lines.push('');
   lines.push('- **Metric:** ' + rubric.metric);
   lines.push('- **Evaluator Type:** ' + rubric.evaluatorType);
+  if (rubric.certMetric !== undefined) lines.push('- **Cert Metric:** ' + rubric.certMetric);
+  if (rubric.certRationale !== undefined) lines.push('- **Cert Rationale:** ' + rubric.certRationale.replace(/\s*[\r\n]+\s*/g, ' '));
   if (rubric.scale !== undefined) lines.push('- **Scale:** ' + rubric.scale);
   if (rubric.threshold !== undefined) lines.push('- **Threshold:** ' + rubric.threshold);
   lines.push('');
@@ -120,7 +128,13 @@ function renderAgent(agentDir) {
   const rubricsRaw = fs.readFileSync(rubricsPath, 'utf8');
   const rubricsConfig = requireFresh(rubricsPath);
 
-  const testCasesMd = renderTestCasesMd(testCasesModule, sha256(testCasesRaw));
+  let summary = [];
+  try {
+    summary = renderSummaryBlock(computeCoverage(testCasesModule, rubricsConfig));
+  } catch (e) {
+    summary = []; // advisory only: never block rendering on a malformed coverage block
+  }
+  const testCasesMd = renderTestCasesMd(testCasesModule, sha256(testCasesRaw), summary);
   const rubricsMd = renderRubricsMd(rubricsConfig, testCasesModule.agentName, sha256(rubricsRaw));
 
   return { testCasesMd, rubricsMd };
