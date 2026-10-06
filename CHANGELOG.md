@@ -6,7 +6,7 @@ this changelog specifically, separate from `package.json`'s npm semver
 version (which follows normal semver rules and is bumped independently when
 the package is actually published).
 
-## [0.12] - 2026-10-06
+## [0.12] - 2026-10-06 (npm 0.4.0)
 
 ### Added
 
